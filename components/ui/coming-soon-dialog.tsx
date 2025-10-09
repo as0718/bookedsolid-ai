@@ -65,7 +65,7 @@ export function ComingSoonDialog({ isOpen, onClose }: ComingSoonDialogProps) {
           </p>
 
           <p className="text-sm text-gray-500 mb-6">
-            We're working on integrating with Retell.ai to bring you complete call analytics.
+            We&apos;re working on integrating with Retell.ai to bring you complete call analytics.
           </p>
 
           <button
