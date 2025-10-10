@@ -2,11 +2,11 @@
 
 import { Button } from "@/components/ui/button";
 import { ComingSoonDialog } from "@/components/ui/coming-soon-dialog";
-import { signOut } from "next-auth/react";
+import { logout } from "@/lib/actions";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Phone, Settings, CreditCard, LogOut, Menu, X } from "lucide-react";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 
 interface NavBarProps {
   userName: string;
@@ -18,6 +18,7 @@ export function NavBar({ userName, userEmail, isAdmin = false }: NavBarProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [comingSoonOpen, setComingSoonOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   const navItems = isAdmin
     ? [
@@ -31,6 +32,12 @@ export function NavBar({ userName, userEmail, isAdmin = false }: NavBarProps) {
         { href: "/dashboard/settings", label: "Settings", icon: Settings, comingSoon: false },
         { href: "/dashboard/billing", label: "Billing", icon: CreditCard, comingSoon: false },
       ];
+
+  const handleLogout = () => {
+    startTransition(async () => {
+      await logout();
+    });
+  };
 
   return (
     <nav className="border-b bg-white sticky top-0 z-50">
@@ -98,11 +105,12 @@ export function NavBar({ userName, userEmail, isAdmin = false }: NavBarProps) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => signOut({ callbackUrl: isAdmin ? "/admin/login" : "/login" })}
+              onClick={handleLogout}
+              disabled={isPending}
               className="text-gray-600 hover:text-gray-900"
             >
               <LogOut className="h-4 w-4 mr-2" />
-              Logout
+              {isPending ? "Logging out..." : "Logout"}
             </Button>
           </div>
 
@@ -171,11 +179,12 @@ export function NavBar({ userName, userEmail, isAdmin = false }: NavBarProps) {
               className="w-full justify-start px-4"
               onClick={() => {
                 setMobileMenuOpen(false);
-                signOut({ callbackUrl: isAdmin ? "/admin/login" : "/login" });
+                handleLogout();
               }}
+              disabled={isPending}
             >
               <LogOut className="h-4 w-4 mr-2" />
-              Logout
+              {isPending ? "Logging out..." : "Logout"}
             </Button>
           </div>
         </div>

@@ -1,6 +1,5 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
 import { NavBar } from "@/components/dashboard/nav-bar";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { allClients, demoCallHistory } from "@/lib/mock-data";
@@ -10,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 export default async function AdminDashboardPage() {
-  const session = await getServerSession(authOptions);
+  const user = await getCurrentUser();
 
-  if (!session || !session.user || (session.user as { role?: string }).role !== "admin") {
+  if (!user || user.role !== "admin") {
     redirect("/login");
   }
 
@@ -31,8 +30,8 @@ export default async function AdminDashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <NavBar
-        userName={session.user.name || "Admin"}
-        userEmail={session.user.email || ""}
+        userName={user.name || "Admin"}
+        userEmail={user.email || ""}
         isAdmin={true}
       />
 

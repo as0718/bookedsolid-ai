@@ -1,6 +1,5 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
 import { NavBar } from "@/components/dashboard/nav-bar";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { CallVolumeChart } from "@/components/dashboard/call-volume-chart";
@@ -11,9 +10,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 export default async function DashboardPage() {
-  const session = await getServerSession(authOptions);
+  const user = await getCurrentUser();
 
-  if (!session || !session.user) {
+  if (!user) {
     redirect("/login");
   }
 
@@ -39,8 +38,8 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <NavBar
-        userName={session.user.name || "User"}
-        userEmail={session.user.email || ""}
+        userName={user.name || "User"}
+        userEmail={user.email || ""}
         isAdmin={false}
       />
 

@@ -1,43 +1,28 @@
 "use client";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import { login } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
-    setLoading(true);
 
-    try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      });
+    const formData = new FormData(e.currentTarget);
 
+    startTransition(async () => {
+      const result = await login(formData);
       if (result?.error) {
-        setError("Invalid email or password");
-        setLoading(false);
-      } else {
-        router.push("/dashboard");
-        router.refresh();
+        setError(result.error);
       }
-    } catch {
-      setError("An error occurred. Please try again.");
-      setLoading(false);
-    }
+    });
   };
 
   return (
@@ -63,12 +48,11 @@ export default function LoginPage() {
               <Label htmlFor="email">Email Address</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
                 placeholder="your@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={loading}
+                disabled={isPending}
                 autoComplete="email"
               />
             </div>
@@ -76,12 +60,11 @@ export default function LoginPage() {
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
+                name="password"
                 type="password"
                 placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
                 required
-                disabled={loading}
+                disabled={isPending}
                 autoComplete="current-password"
               />
             </div>
@@ -92,8 +75,8 @@ export default function LoginPage() {
               </div>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Logging in..." : "Log In"}
+            <Button type="submit" className="w-full" disabled={isPending}>
+              {isPending ? "Logging in..." : "Log In"}
             </Button>
 
             <div className="text-center text-sm text-muted-foreground space-x-4">

@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import { login } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,35 +9,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Shield } from "lucide-react";
 
 export default function AdminLoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
-    setLoading(true);
 
-    try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      });
+    const formData = new FormData(e.currentTarget);
 
+    startTransition(async () => {
+      const result = await login(formData);
       if (result?.error) {
-        setError("Invalid admin credentials");
-        setLoading(false);
-      } else {
-        router.push("/admin/dashboard");
-        router.refresh();
+        setError(result.error);
       }
-    } catch {
-      setError("An error occurred. Please try again.");
-      setLoading(false);
-    }
+    });
   };
 
   return (
@@ -63,12 +48,11 @@ export default function AdminLoginPage() {
               <Label htmlFor="admin-email" className="text-slate-200">Admin Email</Label>
               <Input
                 id="admin-email"
+                name="email"
                 type="email"
                 placeholder="admin@bookedsolid.ai"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={loading}
+                disabled={isPending}
                 autoComplete="email"
                 className="bg-slate-900/50 border-slate-600 text-slate-100"
               />
@@ -77,12 +61,11 @@ export default function AdminLoginPage() {
               <Label htmlFor="admin-password" className="text-slate-200">Admin Password</Label>
               <Input
                 id="admin-password"
+                name="password"
                 type="password"
                 placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
                 required
-                disabled={loading}
+                disabled={isPending}
                 autoComplete="current-password"
                 className="bg-slate-900/50 border-slate-600 text-slate-100"
               />
@@ -97,9 +80,9 @@ export default function AdminLoginPage() {
             <Button
               type="submit"
               className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
-              disabled={loading}
+              disabled={isPending}
             >
-              {loading ? "Logging in..." : "Admin Log In"}
+              {isPending ? "Logging in..." : "Admin Log In"}
             </Button>
 
             <div className="mt-6 p-4 bg-slate-900/50 border border-slate-600 rounded-md">

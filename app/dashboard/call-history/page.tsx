@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { NavBar } from "@/components/dashboard/nav-bar";
 import { demoClient, demoCallHistory } from "@/lib/mock-data";
 import { CallRecord } from "@/lib/types";
@@ -240,9 +240,8 @@ export default function CallHistoryPage() {
                   </TableRow>
                 ) : (
                   paginatedCalls.map((call) => (
-                    <>
+                    <Fragment key={call.id}>
                       <TableRow
-                        key={call.id}
                         className="cursor-pointer hover:bg-gray-50"
                         onClick={() => toggleRow(call.id)}
                       >
@@ -287,7 +286,7 @@ export default function CallHistoryPage() {
 
                       {/* Expanded Row Details */}
                       {expandedRows.has(call.id) && (
-                        <TableRow key={`${call.id}-details`}>
+                        <TableRow>
                           <TableCell colSpan={7} className="bg-gray-50">
                             <div className="p-4 space-y-3">
                               <div>
@@ -335,7 +334,7 @@ export default function CallHistoryPage() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   ))
                 )}
               </TableBody>
