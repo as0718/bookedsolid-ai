@@ -59,5 +59,6 @@ export const authOptions: NextAuthOptions = {
     error: "/login",
   },
   // ⭐⭐⭐ CRITICAL FIX FOR VERCEL ⭐⭐⭐
-  trustHost: true,
+  // The secret is required for production deployments
+  secret: process.env.NEXTAUTH_SECRET,
 };

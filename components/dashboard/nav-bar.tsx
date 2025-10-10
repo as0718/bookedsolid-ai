@@ -27,9 +27,9 @@ export function NavBar({ userName, userEmail, isAdmin = false }: NavBarProps) {
       ]
     : [
         { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, comingSoon: false },
-        { href: "/dashboard/call-history", label: "Call History", icon: Phone, comingSoon: true },
-        { href: "/dashboard/settings", label: "Settings", icon: Settings, comingSoon: true },
-        { href: "/dashboard/billing", label: "Billing", icon: CreditCard, comingSoon: true },
+        { href: "/dashboard/call-history", label: "Call History", icon: Phone, comingSoon: false },
+        { href: "/dashboard/settings", label: "Settings", icon: Settings, comingSoon: false },
+        { href: "/dashboard/billing", label: "Billing", icon: CreditCard, comingSoon: false },
       ];
 
   return (
