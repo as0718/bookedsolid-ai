@@ -50,16 +50,15 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as { role?: string; clientId?: string; id?: string }).role = token.role as string;
         (session.user as { role?: string; clientId?: string; id?: string }).clientId = token.clientId as string;
-        (session.user as { role?: string; clientId?: string; id?: string }).id = token.sub;
+        (session.user as { role?: string; clientId?: string; id?: string }).id = token.sub as string;
       }
       return session;
     },
   },
   pages: {
     signIn: "/login",
+    error: "/login",
   },
-  session: {
-    strategy: "jwt",
-  },
-  secret: process.env.NEXTAUTH_SECRET,
+  // ⭐⭐⭐ CRITICAL FIX FOR VERCEL ⭐⭐⭐
+  trustHost: true,
 };
