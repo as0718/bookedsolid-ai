@@ -35,7 +35,6 @@ yarn-error.log*
 # But keep the templates
 !.env.digitalocean.template
 !.env.vercel.template
-!.env.railway
 !.env.example
 
 # vercel
