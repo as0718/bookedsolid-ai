@@ -32,11 +32,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
-# But keep the templates and production env
+# But keep the templates
 !.env.digitalocean.template
 !.env.vercel.template
+!.env.railway
 !.env.example
-!.env.production
 
 # vercel
 .vercel
