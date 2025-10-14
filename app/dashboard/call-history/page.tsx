@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, Fragment, useEffect } from "react";
 import { NavBar } from "@/components/dashboard/nav-bar";
-import { demoClient, demoCallHistory } from "@/lib/mock-data";
 import { CallRecord } from "@/lib/types";
 import {
   Table,
@@ -37,16 +36,45 @@ import {
 import { format } from "date-fns";
 
 export default function CallHistoryPage() {
+  const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [outcomeFilter, setOutcomeFilter] = useState<string>("all");
   const [dateRangeFilter, setDateRangeFilter] = useState<string>("30");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
+  const [callHistory, setCallHistory] = useState<CallRecord[]>([]);
+  const [clientInfo, setClientInfo] = useState<{ businessName: string; email: string }>({
+    businessName: "",
+    email: "",
+  });
   const itemsPerPage = 20;
+
+  useEffect(() => {
+    setMounted(true);
+
+    // Fetch call history from API
+    async function fetchCallHistory() {
+      try {
+        const response = await fetch("/api/calls");
+        if (response.ok) {
+          const data = await response.json();
+          setCallHistory(data.calls || []);
+          setClientInfo(data.client || { businessName: "User", email: "" });
+        }
+      } catch (error) {
+        console.error("Error fetching call history:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchCallHistory();
+  }, []);
 
   // Filter calls based on search and filters
   const filteredCalls = useMemo(() => {
-    return demoCallHistory.filter((call) => {
+    return callHistory.filter((call) => {
       // Search filter
       const matchesSearch =
         searchQuery === "" ||
@@ -56,17 +84,20 @@ export default function CallHistoryPage() {
       // Outcome filter
       const matchesOutcome = outcomeFilter === "all" || call.outcome === outcomeFilter;
 
-      // Date range filter
-      const callDate = new Date(call.timestamp);
-      const now = new Date();
-      const daysAgo = parseInt(dateRangeFilter);
-      const cutoffDate = new Date(now);
-      cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
-      const matchesDateRange = callDate >= cutoffDate;
+      // Date range filter - only filter by date range after mount to avoid SSR issues
+      let matchesDateRange = true;
+      if (mounted) {
+        const callDate = new Date(call.timestamp);
+        const now = new Date();
+        const daysAgo = parseInt(dateRangeFilter);
+        const cutoffDate = new Date(now);
+        cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
+        matchesDateRange = callDate >= cutoffDate;
+      }
 
       return matchesSearch && matchesOutcome && matchesDateRange;
     });
-  }, [searchQuery, outcomeFilter, dateRangeFilter]);
+  }, [searchQuery, outcomeFilter, dateRangeFilter, mounted]);
 
   // Pagination
   const totalPages = Math.ceil(filteredCalls.length / itemsPerPage);
@@ -139,9 +170,20 @@ export default function CallHistoryPage() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading call history...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <NavBar userName={demoClient.businessName} userEmail={demoClient.email} isAdmin={false} />
+      <NavBar userName={clientInfo.businessName} userEmail={clientInfo.email} isAdmin={false} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}

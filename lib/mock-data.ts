@@ -200,13 +200,22 @@ const services = [
 ];
 
 // Generate 30 days of call history
+// Using a fixed reference date to ensure consistent data between server and client
 function generateCallHistory(): CallRecord[] {
   const calls: CallRecord[] = [];
-  const now = new Date();
+  // Use fixed date: October 10, 2025 for consistent demo data
+  const now = new Date("2025-10-10T12:00:00Z");
   const outcomes: CallRecord["outcome"][] = ["booked", "info", "voicemail", "transferred", "spam"];
   const outcomeWeights = [0.63, 0.18, 0.09, 0.07, 0.03]; // Based on PRD: 156/247 = 63% booked
 
   let callId = 1;
+
+  // Seeded random number generator for consistent results
+  let seed = 42;
+  const seededRandom = () => {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  };
 
   // Generate calls for last 30 days
   for (let daysAgo = 0; daysAgo < 30; daysAgo++) {
@@ -214,16 +223,16 @@ function generateCallHistory(): CallRecord[] {
     date.setDate(date.getDate() - daysAgo);
 
     // Generate 6-12 calls per day (to reach ~247 total)
-    const callsPerDay = Math.floor(Math.random() * 7) + 6;
+    const callsPerDay = Math.floor(seededRandom() * 7) + 6;
 
     for (let i = 0; i < callsPerDay; i++) {
       // Random time between 9 AM and 8 PM
-      const hour = Math.floor(Math.random() * 11) + 9;
-      const minute = Math.floor(Math.random() * 60);
+      const hour = Math.floor(seededRandom() * 11) + 9;
+      const minute = Math.floor(seededRandom() * 60);
       date.setHours(hour, minute, 0, 0);
 
       // Weighted random outcome
-      const rand = Math.random();
+      const rand = seededRandom();
       let outcome: CallRecord["outcome"] = "booked";
       let cumWeight = 0;
       for (let j = 0; j < outcomes.length; j++) {
@@ -235,20 +244,20 @@ function generateCallHistory(): CallRecord[] {
       }
 
       // Random duration between 1-6 minutes
-      const duration = Math.floor(Math.random() * 300) + 60; // 60-360 seconds
+      const duration = Math.floor(seededRandom() * 300) + 60; // 60-360 seconds
 
-      const callerName = callerNames[Math.floor(Math.random() * callerNames.length)];
-      const phoneNumber = `+1555${String(Math.floor(Math.random() * 10000000)).padStart(7, "0")}`;
+      const callerName = callerNames[Math.floor(seededRandom() * callerNames.length)];
+      const phoneNumber = `+1555${String(Math.floor(seededRandom() * 10000000)).padStart(7, "0")}`;
 
       let notes = "";
       let appointmentDetails = undefined;
 
       if (outcome === "booked") {
-        const service = services[Math.floor(Math.random() * services.length)];
-        const daysAhead = Math.floor(Math.random() * 14) + 1;
+        const service = services[Math.floor(seededRandom() * services.length)];
+        const daysAhead = Math.floor(seededRandom() * 14) + 1;
         const apptDate = new Date(date);
         apptDate.setDate(apptDate.getDate() + daysAhead);
-        const apptHour = Math.floor(Math.random() * 10) + 9;
+        const apptHour = Math.floor(seededRandom() * 10) + 9;
 
         notes = `Booked ${service.toLowerCase()} for ${apptDate.toLocaleDateString("en-US", {
           month: "short",
@@ -259,8 +268,8 @@ function generateCallHistory(): CallRecord[] {
           service,
           date: apptDate.toISOString().split("T")[0],
           time: `${apptHour}:00`,
-          stylist: ["Jessica", "Michael", "Amanda", "David"][Math.floor(Math.random() * 4)],
-          estimatedValue: Math.floor(Math.random() * 100) + 50,
+          stylist: ["Jessica", "Michael", "Amanda", "David"][Math.floor(seededRandom() * 4)],
+          estimatedValue: Math.floor(seededRandom() * 100) + 50,
         };
       } else if (outcome === "info") {
         notes = "Asked about pricing and services, will call back";

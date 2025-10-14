@@ -1,7 +1,10 @@
+"use client";
+
 import { CallRecord } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Play } from "lucide-react";
+import { useState, useEffect } from "react";
 
 interface CallActivityTableProps {
   calls: CallRecord[];
@@ -9,7 +12,12 @@ interface CallActivityTableProps {
 }
 
 export function CallActivityTable({ calls, limit = 5 }: CallActivityTableProps) {
+  const [mounted, setMounted] = useState(false);
   const displayCalls = limit ? calls.slice(0, limit) : calls;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const getOutcomeIcon = (outcome: CallRecord["outcome"]) => {
     switch (outcome) {
@@ -53,31 +61,36 @@ export function CallActivityTable({ calls, limit = 5 }: CallActivityTableProps) 
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
 
-    if (date.toDateString() === today.toDateString()) {
-      return `Today, ${date.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      })}`;
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return `Yesterday, ${date.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      })}`;
-    } else {
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      });
+    // Only use relative dates after client-side mount to avoid hydration mismatch
+    if (mounted) {
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      if (date.toDateString() === today.toDateString()) {
+        return `Today, ${date.toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        })}`;
+      } else if (date.toDateString() === yesterday.toDateString()) {
+        return `Yesterday, ${date.toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        })}`;
+      }
     }
+
+    // Default format for SSR and older dates
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
   };
 
   return (

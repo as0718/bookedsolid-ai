@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { ComingSoonDialog } from "@/components/ui/coming-soon-dialog";
-import { logout } from "@/lib/actions";
+import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Phone, Settings, CreditCard, LogOut, Menu, X } from "lucide-react";
@@ -23,8 +23,8 @@ export function NavBar({ userName, userEmail, isAdmin = false }: NavBarProps) {
   const navItems = isAdmin
     ? [
         { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, comingSoon: false },
-        { href: "/admin/clients", label: "Clients", icon: Phone, comingSoon: true },
-        { href: "/admin/settings", label: "Settings", icon: Settings, comingSoon: true },
+        { href: "/admin/clients", label: "Clients", icon: Phone, comingSoon: false },
+        { href: "/admin/settings", label: "Settings", icon: Settings, comingSoon: false },
       ]
     : [
         { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, comingSoon: false },
@@ -35,7 +35,7 @@ export function NavBar({ userName, userEmail, isAdmin = false }: NavBarProps) {
 
   const handleLogout = () => {
     startTransition(async () => {
-      await logout();
+      await signOut({ callbackUrl: "/login" });
     });
   };
 

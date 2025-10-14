@@ -1,115 +1,100 @@
-import { cookies } from "next/headers";
+import { NextAuthOptions } from "next-auth";
+// import { PrismaAdapter } from "@next-auth/prisma-adapter"; // Disabled for local testing
+import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
+// import { prisma } from "./prisma"; // Disabled for local testing
 import { demoUsers } from "./mock-data";
 
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: "client" | "admin";
-  clientId?: string;
-}
+export const authOptions: NextAuthOptions = {
+  // adapter: PrismaAdapter(prisma), // Disabled for local testing - using JWT instead
+  providers: [
+    // Google OAuth Provider
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code"
+        }
+      }
+    }),
+    // Email/Password Provider
+    CredentialsProvider({
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
 
-const SESSION_COOKIE_NAME = "auth-session";
-const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
+        // Demo authentication - hardcoded credentials
+        const validCredentials: { [key: string]: string } = {
+          "demo@bookedsolid.ai": "DemoClient2025!",
+          "admin@bookedsolid.ai": "AdminAccess2025!",
+        };
 
-// Simple session store (in production, use a database or Redis)
-const sessions = new Map<string, { user: User; expiresAt: number }>();
+        if (validCredentials[credentials.email] === credentials.password) {
+          const user = demoUsers.find((u) => u.email === credentials.email);
+          if (user) {
+            return {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              role: user.role,
+              clientId: user.clientId,
+            };
+          }
+        }
+        return null;
+      },
+    }),
+  ],
+  callbacks: {
+    async jwt({ token, user, account }) {
+      // Initial sign in - add user data to JWT token
+      if (user) {
+        token.id = user.id;
+        token.role = (user as any).role;
+        token.clientId = (user as any).clientId;
+      }
 
-// Generate a random session ID
-function generateSessionId(): string {
-  return Array.from({ length: 32 }, () =>
-    Math.floor(Math.random() * 16).toString(16)
-  ).join("");
-}
+      // Handle Google OAuth - match with demo users for role assignment
+      if (account?.provider === "google" && token.email) {
+        const demoUser = demoUsers.find((u) => u.email === token.email);
+        if (demoUser) {
+          token.role = demoUser.role;
+          token.clientId = demoUser.clientId;
+        }
+      }
 
-// Create a session and return the session ID
-export function createSession(user: User): string {
-  const sessionId = generateSessionId();
-  const expiresAt = Date.now() + SESSION_DURATION;
-
-  sessions.set(sessionId, { user, expiresAt });
-
-  return sessionId;
-}
-
-// Get session from session ID
-export function getSession(sessionId: string): User | null {
-  const session = sessions.get(sessionId);
-
-  if (!session) {
-    return null;
-  }
-
-  // Check if session has expired
-  if (Date.now() > session.expiresAt) {
-    sessions.delete(sessionId);
-    return null;
-  }
-
-  return session.user;
-}
-
-// Delete a session
-export function deleteSession(sessionId: string): void {
-  sessions.delete(sessionId);
-}
-
-// Set session cookie
-export async function setSessionCookie(sessionId: string): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, sessionId, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: SESSION_DURATION / 1000, // Convert to seconds
-    path: "/",
-  });
-}
-
-// Get session cookie
-export async function getSessionCookie(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const cookie = cookieStore.get(SESSION_COOKIE_NAME);
-  return cookie?.value || null;
-}
-
-// Delete session cookie
-export async function deleteSessionCookie(): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE_NAME);
-}
-
-// Get current user from session cookie
-export async function getCurrentUser(): Promise<User | null> {
-  const sessionId = await getSessionCookie();
-
-  if (!sessionId) {
-    return null;
-  }
-
-  return getSession(sessionId);
-}
-
-// Verify credentials and return user
-export function verifyCredentials(email: string, password: string): User | null {
-  // Demo authentication - hardcoded credentials
-  const validCredentials: { [key: string]: string } = {
-    "demo@bookedsolid.ai": "DemoClient2025!",
-    "admin@bookedsolid.ai": "AdminAccess2025!",
-  };
-
-  if (validCredentials[email] === password) {
-    const user = demoUsers.find((u) => u.email === email);
-    if (user) {
-      return {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        clientId: user.clientId,
-      };
-    }
-  }
-
-  return null;
-}
+      return token;
+    },
+    async session({ session, token }) {
+      // Add user data from JWT token to session
+      if (session.user && token) {
+        (session.user as any).id = token.id;
+        (session.user as any).role = token.role;
+        (session.user as any).clientId = token.clientId;
+      }
+      return session;
+    },
+  },
+  pages: {
+    signIn: "/login",
+    error: "/login",
+  },
+  session: {
+    // Use JWT sessions for local testing (no database required)
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // 24 hours
+  },
+  // ⭐ CRITICAL FIX FOR VERCEL ⭐
+  // The secret is required for production deployments
+  secret: process.env.NEXTAUTH_SECRET,
+};

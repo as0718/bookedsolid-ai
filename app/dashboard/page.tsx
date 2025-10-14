@@ -1,29 +1,55 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+// import { prisma } from "@/lib/prisma"; // Disabled for local testing
 import { NavBar } from "@/components/dashboard/nav-bar";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { CallVolumeChart } from "@/components/dashboard/call-volume-chart";
 import { CallActivityTable } from "@/components/dashboard/call-activity-table";
-import { demoClient, demoCallHistory, calculateMetrics } from "@/lib/mock-data";
+import { BillingInfo, CallRecord } from "@/lib/types";
 import { Phone, Calendar, DollarSign, PhoneIncoming, TrendingUp, Clock } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { demoClient, demoCallHistory } from "@/lib/mock-data";
 
 export default async function DashboardPage() {
-  const user = await getCurrentUser();
+  const session = await getServerSession(authOptions);
+  const user = session?.user as { role?: string; email?: string; name?: string; clientId?: string } | undefined;
 
-  if (!user) {
+  if (!session || !user || !user.clientId) {
     redirect("/login");
   }
 
-  // Calculate metrics from mock data
-  const metrics = calculateMetrics(demoCallHistory);
+  // Use mock client data for local testing
+  const client = demoClient;
 
-  // Get last 30 days of calls for chart
-  const last30Days = demoCallHistory;
+  // Use mock call history for local testing (last 30 days)
+  const last30Days: CallRecord[] = demoCallHistory;
+
+  // Calculate metrics
+  const totalCalls = last30Days.length;
+  const appointmentsBooked = last30Days.filter((c) => c.outcome === "booked").length;
+  const missedCallsRecovered = last30Days.filter(
+    (c) => c.outcome === "booked" || c.outcome === "info"
+  ).length;
+  const revenueRecovered = last30Days
+    .filter((c) => c.appointmentDetails)
+    .reduce((sum, c) => sum + (c.appointmentDetails?.estimatedValue || 0), 0);
+  const conversionRate = totalCalls > 0 ? (appointmentsBooked / totalCalls) * 100 : 0;
+
+  const metrics = {
+    totalCalls,
+    appointmentsBooked,
+    missedCallsRecovered,
+    revenueRecovered,
+    conversionRate,
+    minutesUsed: Math.floor(last30Days.reduce((sum, c) => sum + c.duration, 0) / 60),
+  };
+
+  const billing = client.billing as BillingInfo;
 
   // Calculate percentage usage and alert status
-  const usagePercent = (demoClient.billing.minutesUsed / demoClient.billing.minutesIncluded) * 100;
+  const usagePercent = (billing.minutesUsed / billing.minutesIncluded) * 100;
   let minutesAlert: "success" | "warning" | "error" = "success";
   let minutesAlertMsg = "";
 
@@ -38,8 +64,8 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <NavBar
-        userName={user.name || "User"}
-        userEmail={user.email || ""}
+        userName={session.user.name || "User"}
+        userEmail={session.user.email || ""}
         isAdmin={false}
       />
 
@@ -48,7 +74,7 @@ export default async function DashboardPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-600 mt-1">
-            Welcome back, {demoClient.businessName}
+            Welcome back, {client.businessName}
           </p>
         </div>
 
@@ -101,7 +127,7 @@ export default async function DashboardPage() {
           />
           <MetricCard
             title="Minutes Used"
-            value={`${demoClient.billing.minutesUsed}/${demoClient.billing.minutesIncluded}`}
+            value={`${billing.minutesUsed}/${billing.minutesIncluded}`}
             alert={minutesAlert}
             alertMessage={minutesAlertMsg}
             subtitle="This month"

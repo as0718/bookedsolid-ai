@@ -1,29 +1,41 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+// import { prisma } from "@/lib/prisma"; // Disabled for local testing
 import { NavBar } from "@/components/dashboard/nav-bar";
 import { MetricCard } from "@/components/dashboard/metric-card";
-import { allClients, demoCallHistory } from "@/lib/mock-data";
+import { AdminClientList } from "@/components/admin/admin-client-list";
 import { Users, Phone, DollarSign, CheckCircle, AlertCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
+import { BillingInfo } from "@/lib/types";
+import { allClients, demoCallHistory } from "@/lib/mock-data";
 
 export default async function AdminDashboardPage() {
-  const user = await getCurrentUser();
+  const session = await getServerSession(authOptions);
+  const user = session?.user as { role?: string; email?: string; name?: string } | undefined;
 
-  if (!user || user.role !== "admin") {
+  if (!session || !user || user.role !== "admin") {
     redirect("/login");
   }
 
+  // Use mock client data for local testing
+  const allClientsData = allClients;
+
+  // Use mock call records count for local testing
+  const totalCallRecords = demoCallHistory.length;
+
   // Calculate admin metrics
-  const activeClients = allClients.filter((c) => c.status === "active").length;
-  const totalCalls = demoCallHistory.length * allClients.length; // Simulate total across all clients
-  const totalRevenue = allClients.reduce((sum, c) => sum + c.billing.monthlyRate, 0);
+  const activeClients = allClientsData.filter((c) => c.status === "active").length;
+  const totalCalls = totalCallRecords;
+  const totalRevenue = allClientsData.reduce((sum, c) => {
+    const billing = c.billing as BillingInfo;
+    return sum + billing.monthlyRate;
+  }, 0);
 
   // Clients nearing limit
-  const clientsNearingLimit = allClients.filter((c) => {
+  const clientsNearingLimit = allClientsData.filter((c) => {
     if (c.plan === "unlimited") return false;
-    const usage = (c.billing.minutesUsed / c.billing.minutesIncluded) * 100;
+    const billing = c.billing as BillingInfo;
+    const usage = (billing.minutesUsed / billing.minutesIncluded) * 100;
     return usage >= 90;
   });
 
@@ -72,65 +84,7 @@ export default async function AdminDashboardPage() {
         </div>
 
         {/* Client List */}
-        <div className="bg-white rounded-lg shadow mb-8">
-          <div className="px-6 py-4 border-b flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Client List</h2>
-            <Button size="sm">+ Add Client</Button>
-          </div>
-          <div className="p-6">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="p-3 text-left text-sm font-medium">Client Name</th>
-                    <th className="p-3 text-left text-sm font-medium">Plan</th>
-                    <th className="p-3 text-left text-sm font-medium">Calls/Mo</th>
-                    <th className="p-3 text-left text-sm font-medium">Status</th>
-                    <th className="p-3 text-left text-sm font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allClients.map((client) => {
-                    const usagePercent =
-                      (client.billing.minutesUsed / client.billing.minutesIncluded) * 100;
-                    const isNearingLimit = usagePercent >= 90 && client.plan !== "unlimited";
-
-                    return (
-                      <tr
-                        key={client.id}
-                        className="border-b last:border-0 hover:bg-muted/30 transition-colors"
-                      >
-                        <td className="p-3 text-sm font-medium">{client.businessName}</td>
-                        <td className="p-3">
-                          <Badge variant="outline" className="capitalize">
-                            {client.plan}
-                          </Badge>
-                        </td>
-                        <td className="p-3 text-sm">{client.billing.minutesUsed}</td>
-                        <td className="p-3">
-                          {isNearingLimit ? (
-                            <Badge variant="destructive">⚠️ Limit</Badge>
-                          ) : client.status === "demo" ? (
-                            <Badge variant="secondary">Demo</Badge>
-                          ) : (
-                            <Badge variant="default">Active</Badge>
-                          )}
-                        </td>
-                        <td className="p-3">
-                          <Link href={`/admin/clients/${client.id}`}>
-                            <Button size="sm" variant="ghost">
-                              View
-                            </Button>
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        <AdminClientList initialClients={allClientsData} />
 
         {/* System Health */}
         <div className="bg-white rounded-lg shadow">
