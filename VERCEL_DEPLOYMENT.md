@@ -2,6 +2,26 @@
 
 **Zero-cost deployment for BookedSolid AI**
 
+## ⚠️ CRITICAL FIX - Environment Variables Error
+
+If you're seeing: **"Environment Variable 'DATABASE_URL' references Secret 'database_url', which does not exist"**
+
+### Root Cause
+The `vercel.json` file was using `@secret_name` syntax (e.g., `@database_url`), which tells Vercel to look for **secret references** instead of using direct environment variable values.
+
+### Fix Applied
+1. ✅ Removed the `env` section from `vercel.json`
+2. ✅ Created `.env.production` with correct values
+3. ✅ Updated `.gitignore` to allow `.env.production`
+4. ✅ Environment variables now set in Vercel Dashboard (see Step 2 below)
+
+**What Changed:**
+- `vercel.json` no longer contains secret references
+- Environment variables are managed in Vercel Dashboard
+- `.env.production` serves as deployment reference
+
+---
+
 ## Prerequisites
 - GitHub account
 - Vercel account (free)
@@ -36,22 +56,31 @@
    - **Build Command**: `prisma generate && prisma migrate deploy && next build`
    - **Install Command**: `npm install --legacy-peer-deps`
 
-5. Add Environment Variables (click **Add** for each):
+5. Add Environment Variables in Vercel Dashboard:
 
-```bash
-# Database (use Supabase connection strings)
-DATABASE_URL=postgresql://postgres:[PASSWORD]@[PROJECT-REF].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
+   Go to **Settings > Environment Variables** and add these **WITHOUT QUOTES**:
 
-DIRECT_DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+   **Variable Name**: `DATABASE_URL`
+   **Value**: `postgresql://postgres:db.OhitEV454lSUbjYX@db.mfndswtgocyzmbvsrbdu.supabase.co:5432/postgres`
+   **Environment**: Production
 
-# NextAuth (generate secret: openssl rand -base64 32)
-NEXTAUTH_SECRET=your-random-32-char-secret
-NEXTAUTH_URL=https://your-app.vercel.app
+   **Variable Name**: `DIRECT_DATABASE_URL`
+   **Value**: `postgresql://postgres:db.OhitEV454lSUbjYX@db.mfndswtgocyzmbvsrbdu.supabase.co:5432/postgres`
+   **Environment**: Production
 
-# Retell.ai
-RETELL_WEBHOOK_SECRET=your-retell-webhook-secret
-RETELL_API_KEY=your-retell-api-key
-```
+   **Variable Name**: `NEXTAUTH_URL`
+   **Value**: `https://bookedsolid-ai.vercel.app`
+   **Environment**: Production
+
+   **Variable Name**: `NEXTAUTH_SECRET`
+   **Value**: `eqNXkOQfX4utUSCeoYzw4oCZGf4LY6VLdtV5Y7qs`
+   **Environment**: Production
+
+   **IMPORTANT**:
+   - Do NOT wrap values in quotes
+   - Do NOT add extra spaces
+   - Copy values exactly as shown
+   - Select "Production" environment for each
 
 6. Click **Deploy**
 
@@ -143,21 +172,34 @@ When to upgrade:
 
 ## Troubleshooting
 
+**❌ Error: "Environment Variable 'DATABASE_URL' references Secret 'database_url', which does not exist"**
+- **Cause**: `vercel.json` was using `@secret_name` syntax
+- **Fix**: Remove `env` section from `vercel.json` (already done)
+- **Action**: Set environment variables in Vercel Dashboard (Settings > Environment Variables)
+- **Result**: Deployment should now succeed
+
 **Build Error: "Prisma Client not generated"**
 - Fix: Update build command to `prisma generate && next build`
+- Verify: Check `vercel.json` has correct buildCommand
 
 **Database Connection Timeout**
-- Check `connection_limit=1` in DATABASE_URL
-- Verify using pooler URL (port 6543)
+- Check DATABASE_URL is correct in Vercel Dashboard
+- Verify Supabase project is active (not paused)
+- Ensure no extra quotes or spaces in environment variable values
 
 **Webhook 401 Unauthorized**
 - Verify `RETELL_WEBHOOK_SECRET` matches Retell dashboard
-- Check URL in Retell: `https://your-app.vercel.app/api/webhooks/retell`
+- Check URL in Retell: `https://bookedsolid-ai.vercel.app/api/webhooks/retell`
 
 **Supabase Paused After 7 Days**
 - Free tier pauses inactive projects
 - Auto-resumes on next request (2-3 second delay)
 - Upgrade to Pro for always-on
+
+**Environment Variables Not Loading**
+- Ensure no quotes around values in Vercel Dashboard
+- Check environment is set to "Production"
+- Redeploy after adding/changing environment variables
 
 ---
 
