@@ -19,7 +19,11 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
 
     // Build where clause
-    const where: any = {};
+    const where: {
+      OR?: Array<{ businessName?: { contains: string; mode: string }; email?: { contains: string; mode: string }; phone?: { contains: string } }>;
+      plan?: string;
+      status?: string;
+    } = {};
 
     if (search) {
       where.OR = [

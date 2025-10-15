@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { ClientAccount, BillingInfo } from "@/lib/types";
 import { Loader2, Check } from "lucide-react";
 
@@ -137,8 +136,8 @@ export function PlanEditDialog({
       } else {
         router.refresh();
       }
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
     }
@@ -150,7 +149,7 @@ export function PlanEditDialog({
         <DialogHeader>
           <DialogTitle>Change Subscription Plan</DialogTitle>
           <DialogDescription>
-            Update {client.businessName}'s subscription plan and billing
+            Update {client.businessName}&apos;s subscription plan and billing
             settings.
           </DialogDescription>
         </DialogHeader>
@@ -175,7 +174,7 @@ export function PlanEditDialog({
           {/* Plan Selection */}
           <div className="space-y-2">
             <Label>Select New Plan</Label>
-            <Select value={selectedPlan} onValueChange={setSelectedPlan}>
+            <Select value={selectedPlan} onValueChange={(value) => setSelectedPlan(value as "missed" | "complete" | "unlimited")}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

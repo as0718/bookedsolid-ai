@@ -81,8 +81,8 @@ export function ClientFormDialog({
       } else {
         router.refresh();
       }
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
     }
@@ -156,7 +156,7 @@ export function ClientFormDialog({
               <Select
                 value={formData.plan}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, plan: value })
+                  setFormData({ ...formData, plan: value as "missed" | "complete" | "unlimited" })
                 }
               >
                 <SelectTrigger id="plan">
@@ -175,7 +175,7 @@ export function ClientFormDialog({
               <Select
                 value={formData.status}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, status: value })
+                  setFormData({ ...formData, status: value as "active" | "suspended" | "demo" })
                 }
               >
                 <SelectTrigger id="status">

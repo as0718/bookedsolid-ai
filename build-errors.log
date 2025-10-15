@@ -1,0 +1,71 @@
+
+> dashboard@0.1.0 build
+> prisma generate && prisma migrate deploy && next build
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+
+✔ Generated Prisma Client (v6.17.1) to ./node_modules/@prisma/client in 108ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Want to turn off tips and other hints? https://pris.ly/tip-4-nohints
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": SQLite database "dev.db" at "file:./dev.db"
+
+1 migration found in prisma/migrations
+
+
+No pending migrations to apply.
+   ▲ Next.js 15.5.4
+   - Environments: .env.local, .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 11.9s
+   Linting and checking validity of types ...
+
+Failed to compile.
+
+./app/admin/settings/page.tsx
+5:10  Warning: 'Card' is defined but never used.  @typescript-eslint/no-unused-vars
+17:3  Warning: 'Globe' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./app/api/admin/clients/route.ts
+22:18  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/calls/route.ts
+6:27  Warning: 'request' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./app/api/webhooks/retell/route.ts
+22:3  Warning: 'RetellEventType' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./app/dashboard/call-history/page.tsx
+100:6  Warning: React Hook useMemo has a missing dependency: 'callHistory'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/admin/admin-client-list.tsx
+24:19  Warning: 'setClients' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./components/admin/client-detail-view.tsx
+28:3  Warning: 'Settings' is defined but never used.  @typescript-eslint/no-unused-vars
+29:3  Warning: 'Users' is defined but never used.  @typescript-eslint/no-unused-vars
+86:14  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+113:14  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./components/admin/client-form-dialog.tsx
+84:19  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/admin/plan-edit-dialog.tsx
+22:10  Warning: 'Input' is defined but never used.  @typescript-eslint/no-unused-vars
+140:19  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+153:41  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./lib/auth.ts
+62:31  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+63:35  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+80:26  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+81:26  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+82:26  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules

@@ -64,8 +64,8 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <NavBar
-        userName={session.user.name || "User"}
-        userEmail={session.user.email || ""}
+        userName={session.user?.name || "User"}
+        userEmail={session.user?.email || ""}
         isAdmin={false}
       />
 

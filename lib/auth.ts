@@ -59,8 +59,8 @@ export const authOptions: NextAuthOptions = {
       // Initial sign in - add user data to JWT token
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role;
-        token.clientId = (user as any).clientId;
+        token.role = (user as { role?: string }).role;
+        token.clientId = (user as { clientId?: string }).clientId;
       }
 
       // Handle Google OAuth - match with demo users for role assignment
@@ -77,9 +77,9 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       // Add user data from JWT token to session
       if (session.user && token) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
-        (session.user as any).clientId = token.clientId;
+        (session.user as { id?: string; role?: string; clientId?: string }).id = token.id as string;
+        (session.user as { id?: string; role?: string; clientId?: string }).role = token.role as string;
+        (session.user as { id?: string; role?: string; clientId?: string }).clientId = token.clientId as string;
       }
       return session;
     },

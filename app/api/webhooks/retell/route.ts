@@ -19,7 +19,6 @@ import {
 } from "@/lib/webhook-verification";
 import {
   RetellWebhookPayload,
-  RetellEventType,
   determineCallOutcome,
   extractCallerInfo,
   calculateDuration,
@@ -78,13 +77,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const webhookPayload = payload as RetellWebhookPayload;
+    const webhookPayload = payload as unknown as RetellWebhookPayload;
 
     console.log("[Retell Webhook] Event:", webhookPayload.event);
     console.log("[Retell Webhook] Call ID:", webhookPayload.call.call_id);
     console.log(
       "[Retell Webhook] Sanitized payload:",
-      JSON.stringify(sanitizePayloadForLogging(webhookPayload), null, 2)
+      JSON.stringify(sanitizePayloadForLogging(webhookPayload as unknown as Record<string, unknown>), null, 2)
     );
 
     // 4. Process webhook based on event type
@@ -173,8 +172,8 @@ async function handleCallStarted(call: RetellWebhookPayload["call"]) {
       direction: call.direction,
       callStatus: call.call_status,
       startTimestamp: BigInt(call.start_timestamp),
-      metadata: call.metadata || {},
-      llmDynamicVariables: call.retell_llm_dynamic_variables || {},
+      metadata: (call.metadata || {}) as Record<string, string | number | boolean>,
+      llmDynamicVariables: (call.retell_llm_dynamic_variables || {}) as Record<string, string | number | boolean>,
       optOutSensitiveData: call.opt_out_sensitive_data_storage || false,
     },
   });
@@ -225,9 +224,9 @@ async function handleCallEnded(call: RetellWebhookPayload["call"]) {
         endTimestamp: call.end_timestamp ? BigInt(call.end_timestamp) : null,
         disconnectionReason: call.disconnection_reason,
         transcript: call.transcript,
-        transcriptObject: call.transcript_object || [],
-        transcriptWithToolCalls: call.transcript_with_tool_calls || [],
-        appointmentDetails: appointmentDetails || undefined,
+        transcriptObject: (call.transcript_object || []) as unknown as Record<string, string | number | boolean>[],
+        transcriptWithToolCalls: (call.transcript_with_tool_calls || []) as unknown as Record<string, string | number | boolean>[],
+        appointmentDetails: appointmentDetails ? (appointmentDetails as unknown as Record<string, string | number | boolean>) : undefined,
         updatedAt: new Date(),
       },
     });
@@ -258,11 +257,11 @@ async function handleCallEnded(call: RetellWebhookPayload["call"]) {
         endTimestamp: call.end_timestamp ? BigInt(call.end_timestamp) : null,
         disconnectionReason: call.disconnection_reason,
         transcript: call.transcript,
-        transcriptObject: call.transcript_object || [],
-        transcriptWithToolCalls: call.transcript_with_tool_calls || [],
-        metadata: call.metadata || {},
-        llmDynamicVariables: call.retell_llm_dynamic_variables || {},
-        appointmentDetails: appointmentDetails || undefined,
+        transcriptObject: (call.transcript_object || []) as unknown as Record<string, string | number | boolean>[],
+        transcriptWithToolCalls: (call.transcript_with_tool_calls || []) as unknown as Record<string, string | number | boolean>[],
+        metadata: (call.metadata || {}) as Record<string, string | number | boolean>,
+        llmDynamicVariables: (call.retell_llm_dynamic_variables || {}) as Record<string, string | number | boolean>,
+        appointmentDetails: appointmentDetails ? (appointmentDetails as unknown as Record<string, string | number | boolean>) : undefined,
         optOutSensitiveData: call.opt_out_sensitive_data_storage || false,
       },
     });
@@ -298,7 +297,7 @@ async function handleCallAnalyzed(call: RetellWebhookPayload["call"]) {
     where: { retellCallId: call.call_id },
     data: {
       outcome,
-      appointmentDetails: appointmentDetails || undefined,
+      appointmentDetails: appointmentDetails ? (appointmentDetails as unknown as Record<string, string | number | boolean>) : undefined,
       updatedAt: new Date(),
     },
   });
