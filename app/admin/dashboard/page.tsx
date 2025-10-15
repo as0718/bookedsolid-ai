@@ -1,13 +1,12 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-// import { prisma } from "@/lib/prisma"; // Disabled for local testing
+import { prisma } from "@/lib/prisma";
 import { NavBar } from "@/components/dashboard/nav-bar";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { AdminClientList } from "@/components/admin/admin-client-list";
 import { Users, Phone, DollarSign, CheckCircle, AlertCircle } from "lucide-react";
 import { BillingInfo } from "@/lib/types";
-import { allClients, demoCallHistory } from "@/lib/mock-data";
 
 export default async function AdminDashboardPage() {
   const session = await getServerSession(authOptions);
@@ -17,11 +16,15 @@ export default async function AdminDashboardPage() {
     redirect("/login");
   }
 
-  // Use mock client data for local testing
-  const allClientsData = allClients;
+  // Fetch all clients from database
+  const allClientsData = await prisma.client.findMany({
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
 
-  // Use mock call records count for local testing
-  const totalCallRecords = demoCallHistory.length;
+  // Get total call records count from database
+  const totalCallRecords = await prisma.callRecord.count();
 
   // Calculate admin metrics
   const activeClients = allClientsData.filter((c) => c.status === "active").length;

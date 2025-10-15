@@ -1,12 +1,12 @@
 import { NextAuthOptions } from "next-auth";
-// import { PrismaAdapter } from "@next-auth/prisma-adapter"; // Disabled for local testing
+import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
-// import { prisma } from "./prisma"; // Disabled for local testing
+import { prisma } from "./prisma";
 import { demoUsers } from "./mock-data";
 
 export const authOptions: NextAuthOptions = {
-  // adapter: PrismaAdapter(prisma), // Disabled for local testing - using JWT instead
+  adapter: PrismaAdapter(prisma),
   providers: [
     // Google OAuth Provider
     GoogleProvider({
@@ -89,8 +89,8 @@ export const authOptions: NextAuthOptions = {
     error: "/login",
   },
   session: {
-    // Use JWT sessions for local testing (no database required)
-    strategy: "jwt",
+    // Use database sessions for production
+    strategy: "database",
     maxAge: 30 * 24 * 60 * 60, // 30 days
     updateAge: 24 * 60 * 60, // 24 hours
   },

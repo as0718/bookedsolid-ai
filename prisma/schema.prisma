@@ -83,6 +83,14 @@ model Client {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Stripe Integration
+  stripeCustomerId       String?  @unique
+  stripeSubscriptionId   String?  @unique
+  stripeSubscriptionStatus String? // "active" | "canceled" | "past_due" | "trialing" | "incomplete"
+  stripePriceId          String?  // Current price ID
+  billingInterval        String   @default("month") // "month" | "year"
+  subscriptionEndsAt     DateTime?
+
   // Billing information (embedded as JSON for flexibility)
   billing Json // BillingInfo: { currentPeriodStart, currentPeriodEnd, minutesIncluded, minutesUsed, overageRate, monthlyRate }
 
@@ -96,6 +104,8 @@ model Client {
   @@index([email])
   @@index([status])
   @@index([createdAt])
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
 }
 
 model CallRecord {

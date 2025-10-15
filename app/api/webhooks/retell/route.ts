@@ -208,6 +208,9 @@ async function handleCallEnded(call: RetellWebhookPayload["call"]) {
     where: { retellCallId: call.call_id },
   });
 
+  let recordId: string;
+  let action: string;
+
   if (existingRecord) {
     // Update existing record
     const updatedRecord = await prisma.callRecord.update({
@@ -231,9 +234,9 @@ async function handleCallEnded(call: RetellWebhookPayload["call"]) {
       },
     });
 
+    recordId = updatedRecord.id;
+    action = "updated";
     console.log("[Retell Webhook] Updated call record:", updatedRecord.id);
-
-    return { call_record_id: updatedRecord.id, action: "updated" };
   } else {
     // Create new record (call_started might have been missed)
     const newRecord = await prisma.callRecord.create({
@@ -266,10 +269,15 @@ async function handleCallEnded(call: RetellWebhookPayload["call"]) {
       },
     });
 
+    recordId = newRecord.id;
+    action = "created";
     console.log("[Retell Webhook] Created call record:", newRecord.id);
-
-    return { call_record_id: newRecord.id, action: "created" };
   }
+
+  // Update client billing with call minutes
+  await updateClientBillingMinutes(clientId, duration);
+
+  return { call_record_id: recordId, action, minutes_tracked: Math.ceil(duration / 60) };
 }
 
 /**
@@ -305,6 +313,45 @@ async function handleCallAnalyzed(call: RetellWebhookPayload["call"]) {
   console.log("[Retell Webhook] Updated call record with analysis:", updatedRecord.id);
 
   return { call_record_id: updatedRecord.id, action: "analyzed" };
+}
+
+/**
+ * Update client billing minutes
+ * Tracks call minutes and updates billing information
+ */
+async function updateClientBillingMinutes(clientId: string, durationSeconds: number) {
+  try {
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+    });
+
+    if (!client) {
+      console.error("[Retell Webhook] Client not found for billing update:", clientId);
+      return;
+    }
+
+    const billing = client.billing as Record<string, unknown>;
+    const minutesUsed = (typeof billing.minutesUsed === "number" ? billing.minutesUsed : 0);
+    const callMinutes = Math.ceil(durationSeconds / 60);
+    const newMinutesUsed = minutesUsed + callMinutes;
+
+    // Update billing information
+    await prisma.client.update({
+      where: { id: clientId },
+      data: {
+        billing: {
+          ...billing,
+          minutesUsed: newMinutesUsed,
+        },
+      },
+    });
+
+    console.log(
+      `[Retell Webhook] Updated billing for client ${clientId}: +${callMinutes} minutes (total: ${newMinutesUsed})`
+    );
+  } catch (error) {
+    console.error("[Retell Webhook] Error updating billing minutes:", error);
+  }
 }
 
 /**

@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-// import { prisma } from "@/lib/prisma"; // Disabled for local testing
+import { prisma } from "@/lib/prisma";
 import { NavBar } from "@/components/dashboard/nav-bar";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { CallVolumeChart } from "@/components/dashboard/call-volume-chart";
@@ -10,7 +10,6 @@ import { BillingInfo, CallRecord } from "@/lib/types";
 import { Phone, Calendar, DollarSign, PhoneIncoming, TrendingUp, Clock } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { demoClient, demoCallHistory } from "@/lib/mock-data";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -20,11 +19,30 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // Use mock client data for local testing
-  const client = demoClient;
+  // Fetch client data from database
+  const client = await prisma.client.findUnique({
+    where: { id: user.clientId },
+  });
 
-  // Use mock call history for local testing (last 30 days)
-  const last30Days: CallRecord[] = demoCallHistory;
+  if (!client) {
+    redirect("/login");
+  }
+
+  // Fetch call history from database (last 30 days)
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const last30Days = await prisma.callRecord.findMany({
+    where: {
+      clientId: user.clientId,
+      timestamp: {
+        gte: thirtyDaysAgo,
+      },
+    },
+    orderBy: {
+      timestamp: "desc",
+    },
+  }) as CallRecord[];
 
   // Calculate metrics
   const totalCalls = last30Days.length;
