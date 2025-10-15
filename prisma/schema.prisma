@@ -6,10 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  // Enable connection pooling for production
-  directUrl = env("DIRECT_DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 // NextAuth.js Models
@@ -21,12 +19,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -108,7 +106,7 @@ model CallRecord {
   callerPhone String
   duration   Int      // in seconds
   outcome    String   // "booked" | "info" | "voicemail" | "transferred" | "spam"
-  notes      String   @db.Text
+  notes      String
   recordingUrl String?
   transcriptUrl String?
 
@@ -122,7 +120,7 @@ model CallRecord {
   startTimestamp     BigInt?  // Unix timestamp in milliseconds
   endTimestamp       BigInt?  // Unix timestamp in milliseconds
   disconnectionReason String? // Reason for call ending
-  transcript         String?  @db.Text // Full text transcript
+  transcript         String?  // Full text transcript
   transcriptObject   Json?    // Structured transcript with segments
   transcriptWithToolCalls Json? // Transcript including AI tool interactions
   metadata           Json?    // Custom metadata from Retell
