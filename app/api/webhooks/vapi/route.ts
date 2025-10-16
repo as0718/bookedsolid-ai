@@ -52,21 +52,51 @@ export async function POST(request: NextRequest) {
   console.log("[Vapi Webhook] Received webhook request");
 
   try {
-    // 1. Verify webhook signature (if Vapi provides one)
+    // 1. Parse payload first (needed for verification)
+    const rawBody = await request.text();
+    const payload: VapiWebhookPayload = JSON.parse(rawBody);
+
+    // 2. Verify webhook signature (REQUIRED for production)
     const signature = request.headers.get("x-vapi-signature");
     const webhookSecret = process.env.VAPI_WEBHOOK_SECRET;
 
-    // Optional: Add signature verification if Vapi supports it
-    if (webhookSecret && signature) {
-      // Implement verification logic here
+    if (!webhookSecret) {
+      console.error("[Vapi Webhook] VAPI_WEBHOOK_SECRET not configured");
+      return NextResponse.json(
+        { error: "Webhook secret not configured" },
+        { status: 500 }
+      );
     }
 
-    // 2. Parse payload
-    const payload: VapiWebhookPayload = await request.json();
+    if (!signature) {
+      console.error("[Vapi Webhook] Missing X-Vapi-Signature header");
+      return NextResponse.json(
+        { error: "Missing signature header" },
+        { status: 401 }
+      );
+    }
+
+    // Verify the signature matches the webhook secret
+    if (signature !== webhookSecret) {
+      console.error("[Vapi Webhook] Invalid signature");
+      return NextResponse.json(
+        { error: "Invalid signature" },
+        { status: 401 }
+      );
+    }
+
+    // 3. Validate payload structure
+    if (!payload.type) {
+      console.error("[Vapi Webhook] Missing event type in payload");
+      return NextResponse.json(
+        { error: "Invalid payload: missing type" },
+        { status: 400 }
+      );
+    }
 
     console.log("[Vapi Webhook] Event type:", payload.type);
 
-    // 3. Process webhook based on event type
+    // 4. Process webhook based on event type
     const result = await processVapiWebhook(payload);
 
     const duration = Date.now() - startTime;
@@ -244,30 +274,38 @@ async function handleCallEnd(call: VapiCallData) {
 
 /**
  * Determine call outcome from Vapi transcript/summary
+ * Maps call content to standardized outcomes for analytics
  */
-function determineVapiOutcome(transcript?: string, summary?: string): string {
+function determineVapiOutcome(transcript?: string, summary?: string): "booked" | "info" | "voicemail" | "transferred" | "spam" | "unknown" {
   const text = `${transcript || ""} ${summary || ""}`.toLowerCase();
 
-  if (text.includes("appointment") && (text.includes("booked") || text.includes("scheduled"))) {
+  // Priority 1: Booked appointments (highest value)
+  if (text.match(/\b(appointment|booking|reservation)\b.*\b(booked|scheduled|confirmed|set up)\b/i) ||
+      text.match(/\b(booked|scheduled|confirmed|set up)\b.*\b(appointment|booking|reservation)\b/i)) {
     return "booked";
   }
 
-  if (text.includes("transfer") || text.includes("forwarded")) {
+  // Priority 2: Transferred calls
+  if (text.match(/\b(transfer|forwarded|connected to|routing to)\b/i)) {
     return "transferred";
   }
 
-  if (text.includes("voicemail") || text.includes("message")) {
+  // Priority 3: Voicemail
+  if (text.match(/\b(voicemail|left a message|leave a message|after the beep)\b/i)) {
     return "voicemail";
   }
 
-  if (text.includes("spam") || text.includes("robocall")) {
+  // Priority 4: Spam detection
+  if (text.match(/\b(spam|robocall|telemarketer|automated call|press 1)\b/i)) {
     return "spam";
   }
 
-  if (text.includes("information") || text.includes("question")) {
+  // Priority 5: Information requests
+  if (text.match(/\b(hours|price|pricing|location|services|question|inquiry|information)\b/i)) {
     return "info";
   }
 
+  // Default: Unknown outcome
   return "unknown";
 }
 
@@ -342,14 +380,14 @@ async function findClientByAssistantId(
     }
   }
 
-  // Strategy 3: Default to first active client (for testing)
-  console.warn("[Vapi Webhook] Could not find client by assistant_id, using default client");
+  // Strategy 3: No fallback in production - require proper configuration
+  console.error(
+    "[Vapi Webhook] No client found for assistant_id:",
+    assistantId,
+    "- Please configure vapiAssistantId in client settings or include client_id in metadata"
+  );
 
-  const defaultClient = await prisma.client.findFirst({
-    where: { status: "active" },
-  });
-
-  return defaultClient?.id || null;
+  return null;
 }
 
 /**

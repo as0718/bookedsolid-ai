@@ -78,8 +78,9 @@ export function determineCallOutcome(call: RetellCallObject): CallOutcome {
     return "transferred";
   }
 
-  // Check for spam indicators
-  if (call.duration && call.duration < 10) {
+  // Check for spam indicators (very short calls)
+  const duration = calculateDuration(call);
+  if (duration > 0 && duration < 10) {
     return "spam";
   }
 

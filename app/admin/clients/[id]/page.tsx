@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { NavBar } from "@/components/dashboard/nav-bar";
 import { ClientDetailView } from "@/components/admin/client-detail-view";
-import { allClients, demoCallHistory } from "@/lib/mock-data";
+import { prisma } from "@/lib/prisma";
+import { ClientAccount, CallRecord } from "@/lib/types";
 
 export default async function AdminClientDetailPage({
   params,
@@ -22,15 +23,26 @@ export default async function AdminClientDetailPage({
   // Await params before using
   const { id } = await params;
 
-  // Find client from mock data
-  const client = allClients.find((c) => c.id === id);
+  // Fetch client from database
+  const clientData = await prisma.client.findUnique({
+    where: { id },
+  });
 
-  if (!client) {
+  if (!clientData) {
     redirect("/admin/dashboard");
   }
 
-  // Get client's call history
-  const clientCalls = demoCallHistory.filter((call) => call.clientId === id);
+  // Transform Prisma client to match ClientAccount interface
+  const client = {
+    ...clientData,
+    createdDate: clientData.createdAt.toISOString(),
+  } as unknown as ClientAccount;
+
+  // Get client's call history from database
+  const clientCalls = await prisma.callRecord.findMany({
+    where: { clientId: id },
+    orderBy: { timestamp: "desc" },
+  });
 
   // Calculate metrics
   const today = new Date();
@@ -65,7 +77,7 @@ export default async function AdminClientDetailPage({
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <ClientDetailView
           client={client}
-          callRecords={clientCalls.slice(0, 20)}
+          callRecords={clientCalls.slice(0, 20) as unknown as CallRecord[]}
           metrics={metrics}
         />
       </main>

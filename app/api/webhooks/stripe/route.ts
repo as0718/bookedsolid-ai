@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
-  const signature = headers().get("stripe-signature");
+  const headersList = await headers();
+  const signature = headersList.get("stripe-signature");
 
   if (!signature) {
     return NextResponse.json(
@@ -98,7 +99,8 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   }
 
   const planConfig = SUBSCRIPTION_PLANS[plan];
-  const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const currentPeriodEnd = new Date(((subscription as any).current_period_end as number) * 1000);
 
   // Update or create client
   await prisma.client.upsert({
@@ -112,7 +114,8 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
       subscriptionEndsAt: currentPeriodEnd,
       status: status === "active" ? "active" : "suspended",
       billing: {
-        currentPeriodStart: new Date(subscription.current_period_start * 1000),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        currentPeriodStart: new Date(((subscription as any).current_period_start as number) * 1000),
         currentPeriodEnd: currentPeriodEnd,
         minutesIncluded: planConfig.minutesIncluded,
         minutesUsed: 0, // Reset on new billing period
@@ -133,7 +136,8 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
       phone: "",
       status: status === "active" ? "active" : "suspended",
       billing: {
-        currentPeriodStart: new Date(subscription.current_period_start * 1000),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        currentPeriodStart: new Date(((subscription as any).current_period_start as number) * 1000),
         currentPeriodEnd: currentPeriodEnd,
         minutesIncluded: planConfig.minutesIncluded,
         minutesUsed: 0,
@@ -161,7 +165,8 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     data: {
       stripeSubscriptionStatus: "canceled",
       status: "suspended",
-      subscriptionEndsAt: new Date(subscription.current_period_end * 1000),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      subscriptionEndsAt: new Date(((subscription as any).current_period_end as number) * 1000),
     },
   });
 

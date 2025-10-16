@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { prisma } from "@/lib/prisma";
 import {
   Settings,
   Bell,
@@ -23,6 +24,10 @@ export default async function AdminSettingsPage() {
   if (!session || !user || user.role !== "admin") {
     redirect("/login");
   }
+
+  // Fetch database statistics
+  const totalClients = await prisma.client.count();
+  const totalCallRecords = await prisma.callRecord.count();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -218,11 +223,11 @@ export default async function AdminSettingsPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm">Total Clients</span>
-                <span className="font-semibold">{allClients.length}</span>
+                <span className="font-semibold">{totalClients}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm">Call Records</span>
-                <span className="font-semibold">247</span>
+                <span className="font-semibold">{totalCallRecords}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm">Storage Used</span>
@@ -272,6 +277,3 @@ export default async function AdminSettingsPage() {
     </div>
   );
 }
-
-// Import allClients count for display
-import { allClients } from "@/lib/mock-data";

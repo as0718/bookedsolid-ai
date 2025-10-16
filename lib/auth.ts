@@ -1,12 +1,12 @@
 import { NextAuthOptions } from "next-auth";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "./prisma";
-import { demoUsers } from "./mock-data";
+import bcrypt from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // Note: PrismaAdapter is removed because it's incompatible with CredentialsProvider
+  // CredentialsProvider only works with JWT sessions, not database sessions
   providers: [
     // Google OAuth Provider
     GoogleProvider({
@@ -32,25 +32,45 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // Demo authentication - hardcoded credentials
-        const validCredentials: { [key: string]: string } = {
-          "demo@bookedsolid.ai": "DemoClient2025!",
-          "admin@bookedsolid.ai": "AdminAccess2025!",
-        };
+        try {
+          // Look up user in database
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email },
+            include: {
+              client: true,
+            },
+          });
 
-        if (validCredentials[credentials.email] === credentials.password) {
-          const user = demoUsers.find((u) => u.email === credentials.email);
-          if (user) {
-            return {
-              id: user.id,
-              email: user.email,
-              name: user.name,
-              role: user.role,
-              clientId: user.clientId,
-            };
+          if (!user || !user.password) {
+            console.log("[Auth] User not found or no password set:", credentials.email);
+            return null;
           }
+
+          // Verify password using bcrypt
+          const isValidPassword = await bcrypt.compare(credentials.password, user.password);
+
+          if (!isValidPassword) {
+            console.log("[Auth] Invalid password for user:", credentials.email);
+            return null;
+          }
+
+          // Determine role and clientId
+          const role = user.role || "client";
+          const clientId = user.client?.id || null;
+
+          console.log("[Auth] User authenticated successfully:", user.email, "Role:", role);
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name || user.email,
+            role,
+            clientId,
+          };
+        } catch (error) {
+          console.error("[Auth] Error during authentication:", error);
+          return null;
         }
-        return null;
       },
     }),
   ],
@@ -63,12 +83,21 @@ export const authOptions: NextAuthOptions = {
         token.clientId = (user as { clientId?: string }).clientId;
       }
 
-      // Handle Google OAuth - match with demo users for role assignment
-      if (account?.provider === "google" && token.email) {
-        const demoUser = demoUsers.find((u) => u.email === token.email);
-        if (demoUser) {
-          token.role = demoUser.role;
-          token.clientId = demoUser.clientId;
+      // Handle Google OAuth - look up user in database for role assignment
+      if (account?.provider === "google" && token.email && !token.role) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { email: token.email },
+            include: { client: true },
+          });
+
+          if (dbUser) {
+            token.id = dbUser.id;
+            token.role = dbUser.role || "client";
+            token.clientId = dbUser.client?.id || null;
+          }
+        } catch (error) {
+          console.error("[Auth] Error looking up Google OAuth user:", error);
         }
       }
 
@@ -89,8 +118,8 @@ export const authOptions: NextAuthOptions = {
     error: "/login",
   },
   session: {
-    // Use database sessions for production
-    strategy: "database",
+    // Use JWT sessions (required for CredentialsProvider)
+    strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
     updateAge: 24 * 60 * 60, // 24 hours
   },

@@ -30,14 +30,14 @@ export default async function AdminDashboardPage() {
   const activeClients = allClientsData.filter((c) => c.status === "active").length;
   const totalCalls = totalCallRecords;
   const totalRevenue = allClientsData.reduce((sum, c) => {
-    const billing = c.billing as BillingInfo;
+    const billing = c.billing as unknown as BillingInfo;
     return sum + billing.monthlyRate;
   }, 0);
 
   // Clients nearing limit
   const clientsNearingLimit = allClientsData.filter((c) => {
     if (c.plan === "unlimited") return false;
-    const billing = c.billing as BillingInfo;
+    const billing = c.billing as unknown as BillingInfo;
     const usage = (billing.minutesUsed / billing.minutesIncluded) * 100;
     return usage >= 90;
   });
@@ -87,7 +87,8 @@ export default async function AdminDashboardPage() {
         </div>
 
         {/* Client List */}
-        <AdminClientList initialClients={allClientsData} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <AdminClientList initialClients={allClientsData as any} />
 
         {/* System Health */}
         <div className="bg-white rounded-lg shadow">

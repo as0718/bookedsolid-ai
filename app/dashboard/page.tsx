@@ -42,7 +42,7 @@ export default async function DashboardPage() {
     orderBy: {
       timestamp: "desc",
     },
-  }) as CallRecord[];
+  }) as unknown as CallRecord[];
 
   // Calculate metrics
   const totalCalls = last30Days.length;
@@ -64,7 +64,7 @@ export default async function DashboardPage() {
     minutesUsed: Math.floor(last30Days.reduce((sum, c) => sum + c.duration, 0) / 60),
   };
 
-  const billing = client.billing as BillingInfo;
+  const billing = client.billing as unknown as BillingInfo;
 
   // Calculate percentage usage and alert status
   const usagePercent = (billing.minutesUsed / billing.minutesIncluded) * 100;

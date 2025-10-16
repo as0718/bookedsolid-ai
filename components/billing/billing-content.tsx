@@ -114,7 +114,7 @@ export function BillingContent({ client, totalCalls, avgCallLength }: BillingCon
       window.location.href = url;
     } catch (error) {
       console.error("Error opening billing portal:", error);
-      alert("Failed to open billing portal. Please try again.");
+      window.alert("Failed to open billing portal. Please try again.");
       setLoading(false);
     }
   };
@@ -138,7 +138,7 @@ export function BillingContent({ client, totalCalls, avgCallLength }: BillingCon
       window.location.href = url;
     } catch (error) {
       console.error("Error creating checkout:", error);
-      alert("Failed to start upgrade process. Please try again.");
+      window.alert("Failed to start upgrade process. Please try again.");
       setUpgradeLoading(false);
     }
   };
@@ -274,7 +274,7 @@ export function BillingContent({ client, totalCalls, avgCallLength }: BillingCon
           {projectedOverage === 0 && !alert && planConfig.minutesIncluded !== -1 && (
             <div className="flex items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
               <TrendingUp className="h-5 w-5" />
-              <span className="font-medium">You're on track! No overages projected.</span>
+              <span className="font-medium">You&apos;re on track! No overages projected.</span>
             </div>
           )}
 

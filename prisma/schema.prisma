@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 // NextAuth.js Models
@@ -49,6 +49,7 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
+  password      String?   // Hashed password for credentials login
   role          String    @default("client") // "client" | "admin"
   clientId      String?
   createdAt     DateTime  @default(now())
@@ -127,8 +128,8 @@ model CallRecord {
   toNumber           String?  // Destination phone number
   direction          String?  // "inbound" | "outbound"
   callStatus         String?  // "registered" | "ongoing" | "ended" | "error"
-  startTimestamp     BigInt?  // Unix timestamp in milliseconds
-  endTimestamp       BigInt?  // Unix timestamp in milliseconds
+  startTimestamp     String?  // Unix timestamp in milliseconds (stored as String for JSON compatibility)
+  endTimestamp       String?  // Unix timestamp in milliseconds (stored as String for JSON compatibility)
   disconnectionReason String? // Reason for call ending
   transcript         String?  // Full text transcript
   transcriptObject   Json?    // Structured transcript with segments

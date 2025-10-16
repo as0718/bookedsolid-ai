@@ -1,77 +1,59 @@
 import { PrismaClient } from "@prisma/client";
-import { allClients, demoUsers, demoCallHistory } from "../lib/mock-data";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log("🌱 Starting database seed...");
 
-  // Clear existing data
-  console.log("Clearing existing data...");
-  await prisma.callRecord.deleteMany();
-  await prisma.session.deleteMany();
-  await prisma.account.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.client.deleteMany();
+  const isProduction = process.env.NODE_ENV === "production";
 
-  // Seed Clients
-  console.log("Seeding clients...");
-  for (const client of allClients) {
-    await prisma.client.create({
-      data: {
-        id: client.id,
-        businessName: client.businessName,
-        email: client.email,
-        phone: client.phone,
-        plan: client.plan,
-        status: client.status,
-        timezone: client.timezone,
-        createdAt: new Date(client.createdDate),
-        billing: client.billing,
-        settings: client.settings,
-      },
-    });
+  if (isProduction) {
+    console.warn("⚠️  Running in PRODUCTION mode");
+    console.warn("⚠️  Only essential data will be seeded");
   }
-  console.log(`✓ Created ${allClients.length} clients`);
 
-  // Seed Users
-  console.log("Seeding users...");
-  for (const user of demoUsers) {
-    await prisma.user.create({
-      data: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        clientId: user.clientId,
-        emailVerified: new Date(), // Mark as verified for demo
-      },
-    });
+  // Clear existing data (only in development)
+  if (!isProduction) {
+    console.log("Clearing existing data...");
+    await prisma.callRecord.deleteMany();
+    await prisma.session.deleteMany();
+    await prisma.account.deleteMany();
+    await prisma.user.deleteMany();
+    await prisma.client.deleteMany();
   }
-  console.log(`✓ Created ${demoUsers.length} users`);
 
-  // Seed Call Records
-  console.log("Seeding call records...");
-  let callCount = 0;
-  for (const call of demoCallHistory) {
-    await prisma.callRecord.create({
-      data: {
-        id: call.id,
-        clientId: call.clientId,
-        timestamp: new Date(call.timestamp),
-        callerName: call.callerName,
-        callerPhone: call.callerPhone,
-        duration: call.duration,
-        outcome: call.outcome,
-        notes: call.notes,
-        recordingUrl: call.recordingUrl,
-        transcriptUrl: call.transcriptUrl,
-        appointmentDetails: call.appointmentDetails || null,
-      },
-    });
-    callCount++;
+  // Check if admin user already exists
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: "admin@bookedsolid.ai" },
+  });
+
+  if (existingAdmin) {
+    console.log("✓ Admin user already exists, skipping seed");
+    return;
   }
-  console.log(`✓ Created ${callCount} call records`);
+
+  // Create admin user with hashed password
+  console.log("Creating admin user...");
+  const adminPassword = process.env.ADMIN_PASSWORD || "ChangeMe2025!";
+  const hashedAdminPassword = await bcrypt.hash(adminPassword, 10);
+
+  await prisma.user.create({
+    data: {
+      email: "admin@bookedsolid.ai",
+      name: "Admin User",
+      password: hashedAdminPassword,
+      role: "admin",
+      emailVerified: new Date(),
+    },
+  });
+
+  console.log("✓ Created admin user: admin@bookedsolid.ai");
+
+  if (!isProduction) {
+    console.log(`  Password: ${adminPassword}`);
+    console.log("  ⚠️  Please change this password immediately!");
+  }
 
   console.log("🎉 Database seeded successfully!");
 }

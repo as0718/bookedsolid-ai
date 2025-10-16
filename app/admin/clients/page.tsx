@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { NavBar } from "@/components/dashboard/nav-bar";
 import { AdminClientList } from "@/components/admin/admin-client-list";
-import { allClients } from "@/lib/mock-data";
+import { prisma } from "@/lib/prisma";
+import { ClientAccount } from "@/lib/types";
 
 export default async function AdminClientsPage() {
   const session = await getServerSession(authOptions);
@@ -13,8 +14,18 @@ export default async function AdminClientsPage() {
     redirect("/login");
   }
 
-  // Use mock client data for local testing
-  const allClientsData = allClients;
+  // Fetch all clients from database
+  const clients = await prisma.client.findMany({
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  // Transform to match ClientAccount interface
+  const allClientsData = clients.map(client => ({
+    ...client,
+    createdDate: client.createdAt.toISOString(),
+  })) as unknown as ClientAccount[];
 
   return (
     <div className="min-h-screen bg-gray-50">

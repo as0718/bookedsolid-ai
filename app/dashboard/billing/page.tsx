@@ -39,7 +39,7 @@ export default async function BillingPage() {
     },
   });
 
-  const billing = client.billing as BillingInfo;
+  const billing = client.billing as unknown as BillingInfo;
 
   // Calculate current usage
   const totalMinutesUsed = Math.floor(

@@ -1,13 +1,20 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Production-ready configuration
   eslint: {
-    // Ignore ESLint errors during build (warnings only in dev)
-    ignoreDuringBuilds: true,
+    // Fail builds on ESLint errors (production quality)
+    ignoreDuringBuilds: false,
   },
   typescript: {
-    // Ignore TypeScript errors during build
-    ignoreBuildErrors: true,
+    // Fail builds on TypeScript errors (production quality)
+    ignoreBuildErrors: false,
+  },
+  // Optimize for production
+  reactStrictMode: true,
+  // Image optimization (if using Next.js Image component)
+  images: {
+    domains: ["images.unsplash.com"], // Add any external image domains here
   },
 };
 
