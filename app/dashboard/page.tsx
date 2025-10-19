@@ -2,10 +2,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { NavBar } from "@/components/dashboard/nav-bar";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { CallVolumeChart } from "@/components/dashboard/call-volume-chart";
 import { CallActivityTable } from "@/components/dashboard/call-activity-table";
+import { UpcomingAppointmentsOverview } from "@/components/dashboard/upcoming-appointments-overview";
 import { BillingInfo, CallRecord } from "@/lib/types";
 import { Phone, Calendar, DollarSign, PhoneIncoming, TrendingUp, Clock } from "lucide-react";
 import Link from "next/link";
@@ -18,6 +18,12 @@ export default async function DashboardPage() {
   if (!session || !user || !user.clientId) {
     redirect("/login");
   }
+
+  // Fetch user data including CRM preference
+  const userData = await prisma.user.findUnique({
+    where: { email: user.email },
+    select: { crmPreference: true },
+  });
 
   // Fetch client data from database
   const client = await prisma.client.findUnique({
@@ -80,13 +86,6 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <NavBar
-        userName={session.user?.name || "User"}
-        userEmail={session.user?.email || ""}
-        isAdmin={false}
-      />
-
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
@@ -153,6 +152,11 @@ export default async function DashboardPage() {
           />
         </div>
 
+        {/* Upcoming Appointments */}
+        <div className="mb-8">
+          <UpcomingAppointmentsOverview />
+        </div>
+
         {/* Call Volume Chart */}
         <div className="mb-8">
           <CallVolumeChart calls={last30Days} days={30} />
@@ -173,6 +177,5 @@ export default async function DashboardPage() {
           </div>
         </div>
       </main>
-    </div>
   );
 }

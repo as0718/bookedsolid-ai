@@ -23,9 +23,21 @@ export default async function AdminClientDetailPage({
   // Await params before using
   const { id } = await params;
 
-  // Fetch client from database
+  // Fetch client from database with user information
   const clientData = await prisma.client.findUnique({
     where: { id },
+    include: {
+      users: {
+        select: {
+          id: true,
+          fullName: true,
+          name: true,
+          hasExternalCRM: true,
+          preferredCRM: true,
+          crmAccessEnabled: true,
+        },
+      },
+    },
   });
 
   if (!clientData) {

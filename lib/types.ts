@@ -10,6 +10,19 @@ export interface ClientAccount {
   timezone: string;
   billing: BillingInfo;
   settings: ClientSettings;
+  billingInterval: "month" | "year"; // Billing cycle
+
+  // Enhanced Contact Information
+  contactName?: string | null;
+  pointOfContact?: string | null;
+  pocPhone?: string | null;
+  pocEmail?: string | null;
+  location?: string | null;
+
+  // Stripe Subscription Status
+  stripeSubscriptionStatus?: string | null;
+  stripeSubscriptionId?: string | null;
+  stripeCustomerId?: string | null;
 }
 
 export interface BillingInfo {
@@ -81,6 +94,42 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: "client" | "admin";
+  role: "client" | "admin" | "team_member";
   clientId?: string;
+  isTeamMember?: boolean;
+  teamRole?: string;
+  teamPermissions?: "view_only" | "full_access";
+  businessOwnerId?: string;
 }
+
+// Team Management Types
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  teamRole: string; // "barber" | "stylist" | "manager" | "assistant"
+  teamPermissions: "view_only" | "full_access";
+  teamJoinedAt: string;
+  status: "active" | "inactive";
+}
+
+export interface TeamInvitation {
+  id: string;
+  email: string;
+  role: string; // "barber" | "stylist" | "manager" | "assistant"
+  permissions: "view_only" | "full_access";
+  status: "PENDING" | "ACCEPTED" | "EXPIRED" | "CANCELLED";
+  expiresAt: string;
+  createdAt: string;
+  invitedBy: {
+    name: string;
+    email: string;
+  };
+  business: {
+    businessName: string;
+  };
+}
+
+export type InvitationStatus = "PENDING" | "ACCEPTED" | "EXPIRED" | "CANCELLED";
+export type TeamRole = "barber" | "stylist" | "manager" | "assistant";
+export type TeamPermission = "view_only" | "full_access";

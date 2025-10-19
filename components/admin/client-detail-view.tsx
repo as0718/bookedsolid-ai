@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientFormDialog } from "./client-form-dialog";
 import { PlanEditDialog } from "./plan-edit-dialog";
+import { DeleteClientAccountModal } from "./delete-client-account-modal";
 import { ClientAccount, CallRecord, BillingInfo } from "@/lib/types";
 import {
   ArrowLeft,
@@ -40,6 +41,43 @@ interface ClientDetailViewProps {
   };
 }
 
+// Helper function to format plan names
+const formatPlanName = (plan: string): string => {
+  const planNames: { [key: string]: string } = {
+    missed: "Missed Call Recovery",
+    complete: "Complete Receptionist",
+    unlimited: "High-Volume Unlimited",
+  };
+  return planNames[plan] || plan;
+};
+
+// Helper function to calculate pricing based on plan and billing interval
+const calculatePricing = (plan: string, billingInterval: string) => {
+  const planPrices: { [key: string]: number } = {
+    missed: 149,
+    complete: 349,
+    unlimited: 599,
+  };
+
+  const monthlyRate = planPrices[plan] || 0;
+
+  if (billingInterval === "year") {
+    const yearlyTotal = monthlyRate * 12 * 0.86; // 14% discount for yearly
+    const effectiveMonthly = yearlyTotal / 12;
+    return {
+      displayAmount: yearlyTotal,
+      effectiveMonthly: effectiveMonthly,
+      isYearly: true,
+    };
+  }
+
+  return {
+    displayAmount: monthlyRate,
+    effectiveMonthly: monthlyRate,
+    isYearly: false,
+  };
+};
+
 export function ClientDetailView({
   client,
   callRecords,
@@ -48,10 +86,25 @@ export function ClientDetailView({
   const router = useRouter();
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showPlanDialog, setShowPlanDialog] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [crmToggleLoading, setCrmToggleLoading] = useState(false);
+  const [voiceClientsCount, setVoiceClientsCount] = useState(0);
+  const [appointmentsCount, setAppointmentsCount] = useState(0);
+
+  // Get user CRM information
+  const clientUser = (client as any).users?.[0];
+  const hasExternalCRM = clientUser?.hasExternalCRM === true;
+  const preferredCRM = clientUser?.preferredCRM;
+  const crmAccessEnabled = clientUser?.crmAccessEnabled !== false;
 
   const billing = client.billing as BillingInfo;
-  const usagePercent = (billing.minutesUsed / billing.minutesIncluded) * 100;
+  const usagePercent = billing.minutesIncluded
+    ? (billing.minutesUsed / billing.minutesIncluded) * 100
+    : 0;
+
+  // Calculate correct pricing based on plan and billing interval
+  const pricing = calculatePricing(client.plan, client.billingInterval);
 
   const handleStatusToggle = async () => {
     if (
@@ -88,29 +141,74 @@ export function ClientDetailView({
     }
   };
 
-  const handleDelete = async () => {
-    if (
-      !confirm(
-        `Are you sure you want to permanently delete ${client.businessName}? This cannot be undone.`
-      )
-    ) {
+  // Fetch VoiceClients and Appointments count when component mounts
+  const fetchCounts = async () => {
+    try {
+      // Get voice clients count for all users of this client
+      const clientUsers = (client as any).users || [];
+      let totalVoiceClients = 0;
+      let totalAppointments = 0;
+
+      for (const user of clientUsers) {
+        // Fetch voice clients
+        const vcResponse = await fetch(`/api/voice-clients?userId=${user.id}`);
+        if (vcResponse.ok) {
+          const vcData = await vcResponse.json();
+          totalVoiceClients += vcData.length || 0;
+        }
+
+        // Fetch appointments
+        const apptResponse = await fetch(`/api/appointments?userId=${user.id}`);
+        if (apptResponse.ok) {
+          const apptData = await apptResponse.json();
+          totalAppointments += apptData.length || 0;
+        }
+      }
+
+      setVoiceClientsCount(totalVoiceClients);
+      setAppointmentsCount(totalAppointments);
+    } catch (error) {
+      console.error("Error fetching counts:", error);
+    }
+  };
+
+  // Fetch counts on component mount
+  useEffect(() => {
+    fetchCounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleDeleteClick = () => {
+    setShowDeleteModal(true);
+  };
+
+  const handleCRMAccessToggle = async () => {
+    if (!clientUser?.id) {
+      alert("No user associated with this client");
       return;
     }
 
-    setLoading(true);
+    setCrmToggleLoading(true);
     try {
-      const response = await fetch(`/api/admin/clients/${client.id}`, {
-        method: "DELETE",
+      const response = await fetch(`/api/admin/users/${clientUser.id}/crm-access`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          crmAccessEnabled: !crmAccessEnabled,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to delete client");
+        throw new Error("Failed to update CRM access");
       }
 
-      router.push("/admin/dashboard");
+      router.refresh();
     } catch (error) {
-      alert("Failed to delete client");
-      setLoading(false);
+      alert("Failed to update CRM access");
+    } finally {
+      setCrmToggleLoading(false);
     }
   };
 
@@ -136,8 +234,8 @@ export function ClientDetailView({
               >
                 {client.status}
               </Badge>
-              <Badge variant="outline" className="capitalize">
-                {client.plan} Plan
+              <Badge variant="outline">
+                {formatPlanName(client.plan)}
               </Badge>
             </div>
           </div>
@@ -303,7 +401,7 @@ export function ClientDetailView({
                   <div>
                     <p className="text-sm text-gray-600">Plan</p>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium capitalize">{client.plan}</p>
+                      <p className="font-medium">{formatPlanName(client.plan)}</p>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -318,9 +416,24 @@ export function ClientDetailView({
                 <div className="flex items-center gap-3">
                   <DollarSign className="h-4 w-4 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-600">Monthly Rate</p>
+                    <p className="text-sm text-gray-600">
+                      {pricing.isYearly ? "Annual Rate" : "Monthly Rate"}
+                    </p>
                     <p className="font-medium">
-                      ${billing.monthlyRate.toLocaleString()}
+                      {pricing.isYearly ? (
+                        <>
+                          ${pricing.displayAmount.toLocaleString(undefined, {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0,
+                          })}
+                          /year (${pricing.effectiveMonthly.toLocaleString(undefined, {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0,
+                          })}/month)
+                        </>
+                      ) : (
+                        `$${pricing.displayAmount.toLocaleString()}/month`
+                      )}
                     </p>
                   </div>
                 </div>
@@ -352,15 +465,39 @@ export function ClientDetailView({
                 <div>
                   <p className="text-sm text-gray-600">Current Period</p>
                   <p className="font-medium">
-                    {new Date(billing.currentPeriodStart).toLocaleDateString()}{" "}
+                    {billing.currentPeriodStart ? new Date(billing.currentPeriodStart).toLocaleDateString() : "N/A"}{" "}
                     -{" "}
-                    {new Date(billing.currentPeriodEnd).toLocaleDateString()}
+                    {billing.currentPeriodEnd ? new Date(billing.currentPeriodEnd).toLocaleDateString() : "N/A"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Monthly Rate</p>
+                  <p className="text-sm text-gray-600">
+                    {pricing.isYearly ? "Annual Rate" : "Monthly Rate"}
+                  </p>
                   <p className="font-medium text-xl">
-                    ${billing.monthlyRate.toLocaleString()}
+                    {pricing.isYearly ? (
+                      <>
+                        ${pricing.displayAmount.toLocaleString(undefined, {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0,
+                        })}
+                        /year
+                        <span className="text-sm text-gray-500 ml-2">
+                          (${pricing.effectiveMonthly.toLocaleString(undefined, {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0,
+                          })}/month)
+                        </span>
+                      </>
+                    ) : (
+                      `$${pricing.displayAmount.toLocaleString()}/month`
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Billing Cycle</p>
+                  <p className="font-medium capitalize">
+                    {client.billingInterval === "year" ? "Yearly" : "Monthly"}
                   </p>
                 </div>
                 <div>
@@ -368,13 +505,13 @@ export function ClientDetailView({
                   <p className="font-medium">
                     {client.plan === "unlimited"
                       ? "Unlimited"
-                      : billing.minutesIncluded.toLocaleString()}
+                      : billing.minutesIncluded?.toLocaleString() || "0"}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Minutes Used</p>
                   <p className="font-medium">
-                    {billing.minutesUsed.toLocaleString()}
+                    {billing.minutesUsed?.toLocaleString() || "0"}
                   </p>
                 </div>
                 <div>
@@ -402,7 +539,7 @@ export function ClientDetailView({
                   <p className="font-medium">
                     {client.plan === "unlimited"
                       ? "N/A"
-                      : `$${billing.overageRate}/min`}
+                      : billing.overageRate ? `$${billing.overageRate}/min` : "N/A"}
                   </p>
                 </div>
               </div>
@@ -530,6 +667,58 @@ export function ClientDetailView({
             </CardContent>
           </Card>
 
+          <Card className="border-purple-200">
+            <CardHeader>
+              <CardTitle>CRM Management</CardTitle>
+              <CardDescription>
+                Control client's access to the built-in CRM
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-2">CRM Status</p>
+                {hasExternalCRM ? (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                      Using External CRM
+                    </Badge>
+                    {preferredCRM && (
+                      <span className="text-sm text-gray-600">({preferredCRM})</span>
+                    )}
+                  </div>
+                ) : (
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                    Using Built-in CRM
+                  </Badge>
+                )}
+              </div>
+
+              <div className="pt-2 border-t">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="text-sm font-medium">CRM Access</p>
+                    <p className="text-xs text-gray-500">
+                      Toggle to override user's CRM preference
+                    </p>
+                  </div>
+                  <Button
+                    variant={crmAccessEnabled ? "default" : "outline"}
+                    size="sm"
+                    onClick={handleCRMAccessToggle}
+                    disabled={crmToggleLoading}
+                  >
+                    {crmAccessEnabled ? "Enabled" : "Disabled"}
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  {crmAccessEnabled
+                    ? "Client can access the CRM tab in their dashboard"
+                    : "CRM tab is hidden from client's dashboard"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="border-red-200">
             <CardHeader>
               <CardTitle className="text-red-600">Danger Zone</CardTitle>
@@ -540,11 +729,14 @@ export function ClientDetailView({
             <CardContent>
               <Button
                 variant="destructive"
-                onClick={handleDelete}
+                onClick={handleDeleteClick}
                 disabled={loading}
               >
-                Delete Client Permanently
+                Delete Client Account
               </Button>
+              <p className="text-xs text-gray-500 mt-2">
+                CRM customer data ({voiceClientsCount} records) will be preserved
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -568,6 +760,26 @@ export function ClientDetailView({
         onSuccess={() => {
           setShowPlanDialog(false);
           router.refresh();
+        }}
+      />
+
+      <DeleteClientAccountModal
+        open={showDeleteModal}
+        onOpenChange={setShowDeleteModal}
+        client={{
+          id: client.id,
+          businessName: client.businessName,
+          email: client.email,
+        }}
+        users={(client as any).users || []}
+        metrics={{
+          totalCalls: metrics.totalCalls,
+          voiceClientsCount,
+          appointmentsCount,
+        }}
+        onSuccess={() => {
+          setShowDeleteModal(false);
+          router.push("/admin/dashboard");
         }}
       />
     </div>

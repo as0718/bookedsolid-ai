@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, Fragment, useEffect } from "react";
-import { NavBar } from "@/components/dashboard/nav-bar";
 import { CallRecord } from "@/lib/types";
 import {
   Table,
@@ -48,6 +47,7 @@ export default function CallHistoryPage() {
     businessName: "",
     email: "",
   });
+  const [crmPreference, setCrmPreference] = useState<string>("BOOKEDSOLID_CRM");
   const itemsPerPage = 20;
 
   useEffect(() => {
@@ -61,6 +61,7 @@ export default function CallHistoryPage() {
           const data = await response.json();
           setCallHistory(data.calls || []);
           setClientInfo(data.client || { businessName: "User", email: "" });
+          setCrmPreference(data.crmPreference || "BOOKEDSOLID_CRM");
         }
       } catch (error) {
         console.error("Error fetching call history:", error);
@@ -172,7 +173,7 @@ export default function CallHistoryPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading call history...</p>
@@ -182,9 +183,6 @@ export default function CallHistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <NavBar userName={clientInfo.businessName} userEmail={clientInfo.email} isAdmin={false} />
-
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -424,6 +422,5 @@ export default function CallHistoryPage() {
           )}
         </Card>
       </main>
-    </div>
   );
 }

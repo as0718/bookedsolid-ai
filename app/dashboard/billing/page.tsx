@@ -2,9 +2,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { NavBar } from "@/components/dashboard/nav-bar";
-import { BillingContent } from "@/components/billing/billing-content";
-import { BillingInfo } from "@/lib/types";
+import { SubscriptionPortal } from "@/components/billing/subscription-portal";
+import { UsageAnalytics } from "@/components/billing/usage-analytics";
+import StripeErrorBoundary from "@/components/stripe-error-boundary";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default async function BillingPage() {
   const session = await getServerSession(authOptions);
@@ -23,54 +24,31 @@ export default async function BillingPage() {
     redirect("/login");
   }
 
-  // Fetch call history from database (last 30 days) for usage calculations
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-  const last30Days = await prisma.callRecord.findMany({
-    where: {
-      clientId: user.clientId,
-      timestamp: {
-        gte: thirtyDaysAgo,
-      },
-    },
-    orderBy: {
-      timestamp: "desc",
-    },
-  });
-
-  const billing = client.billing as unknown as BillingInfo;
-
-  // Calculate current usage
-  const totalMinutesUsed = Math.floor(
-    last30Days.reduce((sum, call) => sum + call.duration, 0) / 60
-  );
-
-  // Calculate metrics
-  const totalCalls = last30Days.length;
-  const avgCallLength = totalCalls > 0
-    ? Math.floor(last30Days.reduce((sum, c) => sum + c.duration, 0) / totalCalls)
-    : 0;
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <NavBar
-        userName={session.user?.name || "User"}
-        userEmail={session.user?.email || ""}
-        isAdmin={false}
-      />
+    <StripeErrorBoundary>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Tabs defaultValue="plans" className="w-full">
+          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
+            <TabsTrigger value="plans">Plans & Pricing</TabsTrigger>
+            <TabsTrigger value="usage">Current Usage</TabsTrigger>
+          </TabsList>
 
-      <BillingContent
-        client={{
-          ...client,
-          billing: {
-            ...billing,
-            minutesUsed: totalMinutesUsed,
-          },
-        }}
-        totalCalls={totalCalls}
-        avgCallLength={avgCallLength}
-      />
-    </div>
+          <TabsContent value="plans" className="space-y-6">
+            <SubscriptionPortal
+              currentPlan={client.plan}
+              currentBillingInterval={client.billingInterval}
+              stripeCustomerId={client.stripeCustomerId}
+              stripeSubscriptionId={client.stripeSubscriptionId}
+              subscriptionEndsAt={client.subscriptionEndsAt}
+              stripeSubscriptionStatus={client.stripeSubscriptionStatus}
+            />
+          </TabsContent>
+
+          <TabsContent value="usage">
+            <UsageAnalytics clientId={user.clientId} />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </StripeErrorBoundary>
   );
 }

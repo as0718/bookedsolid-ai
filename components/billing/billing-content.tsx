@@ -44,6 +44,12 @@ export function BillingContent({ client, totalCalls, avgCallLength }: BillingCon
   const billing = client.billing;
   const planConfig = SUBSCRIPTION_PLANS[client.plan as keyof typeof SUBSCRIPTION_PLANS];
 
+  // Calculate the actual price based on billing interval
+  const currentRate = client.billingInterval === "year"
+    ? planConfig.annualRate
+    : planConfig.monthlyRate;
+  const billingLabel = client.billingInterval === "year" ? "/year" : "/month";
+
   // Calculate usage percentage
   const usagePercent = planConfig.minutesIncluded === -1
     ? 0
@@ -57,8 +63,10 @@ export function BillingContent({ client, totalCalls, avgCallLength }: BillingCon
 
   // Calculate days left in billing period
   const today = new Date();
-  const periodEnd = new Date(billing.currentPeriodEnd);
-  const daysLeft = Math.ceil((periodEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const periodEnd = billing.currentPeriodEnd ? new Date(billing.currentPeriodEnd) : null;
+  const daysLeft = periodEnd && !isNaN(periodEnd.getTime())
+    ? Math.ceil((periodEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    : 30; // Default to 30 days if no valid date
 
   // Get plan badge
   const getPlanBadge = (plan: string) => {
@@ -82,7 +90,7 @@ export function BillingContent({ client, totalCalls, avgCallLength }: BillingCon
         level: "error" as const,
         icon: <AlertTriangle className="h-5 w-5 text-red-600" />,
         message: `⚠️ You're at ${usagePercent.toFixed(0)}% of your monthly minutes.`,
-        suggestion: "Consider upgrading to Unlimited Plan ($997/mo) to avoid overages.",
+        suggestion: "Consider upgrading to High-Volume Unlimited ($599/mo) to avoid overages.",
         color: "bg-red-50 border-red-200 text-red-800",
       };
     } else if (usagePercent >= 75) {
@@ -90,7 +98,7 @@ export function BillingContent({ client, totalCalls, avgCallLength }: BillingCon
         level: "warning" as const,
         icon: <AlertTriangle className="h-5 w-5 text-yellow-600" />,
         message: `⚠️ You're at ${usagePercent.toFixed(0)}% of your monthly minutes.`,
-        suggestion: "Consider upgrading to Unlimited Plan ($997/mo) to avoid overages.",
+        suggestion: "Consider upgrading to High-Volume Unlimited ($599/mo) to avoid overages.",
         color: "bg-yellow-50 border-yellow-200 text-yellow-800",
       };
     }
@@ -106,15 +114,28 @@ export function BillingContent({ client, totalCalls, avgCallLength }: BillingCon
         method: "POST",
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error("Failed to create billing portal session");
+        // Show the detailed error message from the API
+        const errorMessage = data.error || "Failed to create billing portal session";
+        console.error("Error opening billing portal:", data);
+        window.alert(`${errorMessage}${data.details ? `\n\nDetails: ${data.details}` : ""}`);
+        setLoading(false);
+        return;
       }
 
-      const { url } = await response.json();
-      window.location.href = url;
+      // Redirect to Stripe billing portal
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("No billing portal URL returned");
+      }
     } catch (error) {
       console.error("Error opening billing portal:", error);
-      window.alert("Failed to open billing portal. Please try again.");
+      window.alert(
+        "Failed to open billing portal. Please try again or contact support if the problem persists."
+      );
       setLoading(false);
     }
   };
@@ -168,8 +189,8 @@ export function BillingContent({ client, totalCalls, avgCallLength }: BillingCon
           </div>
           <div className="text-right">
             <p className="text-3xl font-bold text-gray-900">
-              ${billing.monthlyRate}
-              <span className="text-lg text-gray-600 font-normal">/month</span>
+              ${currentRate}
+              <span className="text-lg text-gray-600 font-normal">{billingLabel}</span>
             </p>
           </div>
         </div>
@@ -192,7 +213,9 @@ export function BillingContent({ client, totalCalls, avgCallLength }: BillingCon
           <div className="flex items-center gap-2 text-gray-700">
             <Calendar className="h-4 w-4" />
             <span>
-              Next billing date: {format(new Date(billing.currentPeriodEnd), "MMMM d, yyyy")}
+              Next billing date: {periodEnd && !isNaN(periodEnd.getTime())
+                ? format(periodEnd, "MMMM d, yyyy")
+                : "Not set"}
             </span>
             <Badge variant="outline">{daysLeft} days left</Badge>
           </div>
@@ -313,7 +336,7 @@ export function BillingContent({ client, totalCalls, avgCallLength }: BillingCon
         <Card className="p-6 mt-6 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
           <h3 className="font-semibold mb-3">💡 Need More Minutes?</h3>
           <p className="text-sm text-gray-700 mb-4">
-            Upgrade to Unlimited Plan for just $997/month and get unlimited calling minutes,
+            Upgrade to High-Volume Unlimited for just $599/month and get unlimited calling minutes,
             priority support, and advanced features.
           </p>
           <Button

@@ -1,68 +1,120 @@
 import Stripe from "stripe";
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error("STRIPE_SECRET_KEY is not set in environment variables");
-}
+// Check if Stripe is properly configured
+export const isStripeConfigured = !!(
+  process.env.STRIPE_SECRET_KEY &&
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY &&
+  !process.env.STRIPE_SECRET_KEY.includes('REPLACE_WITH_YOUR_KEY') &&
+  !process.env.STRIPE_SECRET_KEY.includes('REPLACE_WITH_YOUR_ACTUAL_PRICE_ID')
+);
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+// Initialize Stripe with a fallback for development
+const stripeKey = process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder';
+
+export const stripe = new Stripe(stripeKey, {
   apiVersion: "2025-09-30.clover",
   typescript: true,
 });
 
+// Helper function to check if Stripe operations are available
+export function requireStripeConfig() {
+  if (!isStripeConfigured) {
+    throw new Error(
+      "Stripe is not properly configured. Please set STRIPE_SECRET_KEY and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY in your environment variables. " +
+      "Get your keys from https://dashboard.stripe.com/apikeys"
+    );
+  }
+}
+
+// Helper function to validate price IDs are configured
+export function validatePriceIds() {
+  const plans: PlanType[] = ['missed', 'complete', 'unlimited'];
+  const intervals: BillingInterval[] = ['month', 'year'];
+
+  for (const plan of plans) {
+    for (const interval of intervals) {
+      const priceId = getPriceId(plan, interval);
+      if (!priceId || priceId.includes('REPLACE_WITH_YOUR_ACTUAL_PRICE_ID')) {
+        throw new Error(
+          `Missing or invalid Stripe Price ID for ${plan} plan (${interval}ly). ` +
+          `Please create products in Stripe Dashboard and add Price IDs to your environment variables.`
+        );
+      }
+    }
+  }
+}
+
 // Subscription Plan Configurations
 export const SUBSCRIPTION_PLANS = {
   missed: {
-    name: "Missed Call Plan",
+    name: "Missed Call Recovery",
+    description: "Perfect for: Testing the service while keeping your receptionist",
     monthlyPriceId: process.env.STRIPE_PRICE_MISSED_MONTHLY || "",
     annualPriceId: process.env.STRIPE_PRICE_MISSED_ANNUAL || "",
-    minutesIncluded: 500,
-    monthlyRate: 297,
-    annualRate: 2970, // 10 months price
+    minutesIncluded: -1, // Unlimited missed calls
+    monthlyRate: 149,
+    annualRate: 1700,
+    ctaText: "Start with Missed Calls",
+    subtitle: "Upgrade to full coverage anytime",
     features: [
-      "500 minutes/month",
-      "After-hours call coverage",
-      "Basic appointment booking",
-      "Email notifications",
-      "Standard support",
+      "Unlimited missed calls handled",
+      "Books appointments 24/7",
+      "After-hours & weekend coverage",
+      "CRM/booking system integration",
+      "SMS confirmations & reminders",
+      "Basic analytics dashboard",
+      "Email support",
     ],
   },
   complete: {
-    name: "Complete Plan",
+    name: "Complete Receptionist",
+    description: "Includes: Up to 1,000 minutes per month | Overage: $0.25/minute",
     monthlyPriceId: process.env.STRIPE_PRICE_COMPLETE_MONTHLY || "",
     annualPriceId: process.env.STRIPE_PRICE_COMPLETE_ANNUAL || "",
     minutesIncluded: 1000,
-    monthlyRate: 497,
-    annualRate: 4970, // 10 months price
+    monthlyRate: 349,
+    annualRate: 4000,
+    ctaText: "Get Complete Coverage",
+    subtitle: "Save $2,850/month vs traditional receptionist",
+    badge: "MOST POPULAR",
     features: [
-      "1,000 minutes/month",
-      "24/7 call coverage",
-      "Advanced appointment booking",
-      "CRM integration",
-      "SMS + Email notifications",
-      "Priority support",
+      "All calls handled 24/7/365",
+      "Unlimited concurrent calls",
+      "CRM/booking system integration",
+      "SMS confirmations & reminders",
+      "Multi-service booking",
+      "Stylist preference management",
+      "Call recordings & transcripts",
+      "Advanced analytics dashboard",
+      "Phone & email support",
     ],
   },
   unlimited: {
-    name: "Unlimited Plan",
+    name: "High-Volume Unlimited",
+    description: "For businesses with: 50+ calls per day or multi-location needs",
     monthlyPriceId: process.env.STRIPE_PRICE_UNLIMITED_MONTHLY || "",
     annualPriceId: process.env.STRIPE_PRICE_UNLIMITED_ANNUAL || "",
-    minutesIncluded: -1, // Unlimited
-    monthlyRate: 997,
-    annualRate: 9970, // 10 months price
+    minutesIncluded: -1, // Truly unlimited
+    monthlyRate: 599,
+    annualRate: 7000,
+    ctaText: "Contact Sales",
+    subtitle: "For 50+ calls/day",
     features: [
-      "Unlimited minutes",
-      "24/7 premium call coverage",
-      "Full appointment management",
-      "Advanced CRM integration",
-      "Custom AI training",
-      "SMS + Email + Slack notifications",
+      "Truly unlimited minutes",
+      "No overage charges ever",
+      "All Complete plan features",
+      "Up to 3 locations included",
+      "Custom CRM integrations",
+      "Advanced call routing",
+      "Priority phone support",
       "Dedicated account manager",
+      "Custom reporting",
     ],
   },
 } as const;
 
-// Overage rate: $0.15 per minute after plan limit
-export const OVERAGE_RATE_PER_MINUTE = 0.15;
+// Overage rate: $0.25 per minute after plan limit (for Complete plan only)
+export const OVERAGE_RATE_PER_MINUTE = 0.25;
 
 export type PlanType = keyof typeof SUBSCRIPTION_PLANS;
 export type BillingInterval = "month" | "year";

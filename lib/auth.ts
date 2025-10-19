@@ -75,6 +75,121 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
+    async signIn({ user, account, profile }) {
+      // Handle Google OAuth sign-in
+      if (account?.provider === "google" && user.email) {
+        try {
+          // Check if user exists
+          const existingUser = await prisma.user.findUnique({
+            where: { email: user.email },
+            include: { client: true },
+          });
+
+          // If user doesn't exist, create them with a client
+          if (!existingUser) {
+            console.log("[Auth] Creating new user from Google OAuth:", user.email);
+
+            // Extract full name from Google profile
+            const fullName = user.name || user.email.split('@')[0];
+
+            // Create client first
+            const newClient = await prisma.client.create({
+              data: {
+                businessName: fullName,
+                contactName: fullName, // Store contact name for display in admin dashboard
+                email: user.email,
+                phone: "",
+                plan: "missed",
+                status: "active",
+                billing: {
+                  minutesIncluded: 60,
+                  minutesUsed: 0,
+                  overageRate: 0.50,
+                  currentMonthCost: 0,
+                },
+                settings: {
+                  voiceType: "female",
+                  speakingSpeed: 1.0,
+                  customGreeting: "",
+                  bookingSystem: "none",
+                  calendarSync: false,
+                },
+              },
+            });
+
+            // Create user linked to client with full name
+            await prisma.user.create({
+              data: {
+                email: user.email,
+                name: fullName,
+                fullName: fullName, // Store in fullName field for consistency
+                image: user.image,
+                role: "client",
+                clientId: newClient.id,
+              },
+            });
+
+            console.log("[Auth] Successfully created user and client for:", user.email);
+          } else if (!existingUser.clientId) {
+            // User exists but has no client - create one
+            console.log("[Auth] User exists without client, creating client for:", user.email);
+
+            // Extract full name from Google profile
+            const fullName = user.name || user.email.split('@')[0];
+
+            const newClient = await prisma.client.create({
+              data: {
+                businessName: fullName,
+                contactName: fullName, // Store contact name for display in admin dashboard
+                email: user.email,
+                phone: "",
+                plan: "missed",
+                status: "active",
+                billing: {
+                  minutesIncluded: 60,
+                  minutesUsed: 0,
+                  overageRate: 0.50,
+                  currentMonthCost: 0,
+                },
+                settings: {
+                  voiceType: "female",
+                  speakingSpeed: 1.0,
+                  customGreeting: "",
+                  bookingSystem: "none",
+                  calendarSync: false,
+                },
+              },
+            });
+
+            // Update user with clientId and full name
+            await prisma.user.update({
+              where: { email: user.email },
+              data: {
+                clientId: newClient.id,
+                fullName: fullName, // Update fullName if not already set
+              },
+            });
+
+            console.log("[Auth] Successfully linked client to existing user:", user.email);
+          } else {
+            // User exists with client - update fullName if not already set
+            if (!existingUser.fullName && user.name) {
+              await prisma.user.update({
+                where: { email: user.email },
+                data: { fullName: user.name },
+              });
+            }
+          }
+
+          return true;
+        } catch (error) {
+          console.error("[Auth] Error during Google OAuth sign-in:", error);
+          return false;
+        }
+      }
+
+      return true;
+    },
     async jwt({ token, user, account }) {
       // Initial sign in - add user data to JWT token
       if (user) {

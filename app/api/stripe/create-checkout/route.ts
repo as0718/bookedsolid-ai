@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { stripe, getPriceId, PlanType, BillingInterval } from "@/lib/stripe";
+import { stripe, getPriceId, PlanType, BillingInterval, requireStripeConfig } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
+    // Check if Stripe is configured
+    requireStripeConfig();
+
     const session = await getServerSession(authOptions);
     const user = session?.user as { clientId?: string; email?: string } | undefined;
 
@@ -37,10 +40,10 @@ export async function POST(req: NextRequest) {
 
     const priceId = getPriceId(plan, interval);
 
-    if (!priceId) {
+    if (!priceId || priceId.includes('REPLACE_WITH_YOUR_ACTUAL_PRICE_ID')) {
       return NextResponse.json(
-        { error: "Invalid plan or interval" },
-        { status: 400 }
+        { error: "Stripe Price IDs not configured. Please create products in Stripe Dashboard and add Price IDs to environment variables." },
+        { status: 500 }
       );
     }
 

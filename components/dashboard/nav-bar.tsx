@@ -5,21 +5,24 @@ import { ComingSoonDialog } from "@/components/ui/coming-soon-dialog";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Phone, Settings, CreditCard, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, CreditCard, LogOut, Menu, X, Users, Users2 } from "lucide-react";
 import { useState, useTransition } from "react";
 
 interface NavBarProps {
   userName: string;
   userEmail: string;
   isAdmin?: boolean;
+  crmPreference?: string; // "BOOKEDSOLID_CRM" | "EXTERNAL_CRM" | "SKIP"
+  canManageTeam?: boolean;
 }
 
-export function NavBar({ userName, userEmail, isAdmin = false }: NavBarProps) {
+export function NavBar({ userName, userEmail, isAdmin = false, crmPreference = "BOOKEDSOLID_CRM", canManageTeam = false }: NavBarProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [comingSoonOpen, setComingSoonOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
+  // Build nav items based on user type and CRM preference
   const navItems = isAdmin
     ? [
         { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, comingSoon: false },
@@ -28,9 +31,17 @@ export function NavBar({ userName, userEmail, isAdmin = false }: NavBarProps) {
       ]
     : [
         { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, comingSoon: false },
+        // Only show CRM if user chose BOOKEDSOLID_CRM
+        ...(crmPreference === "BOOKEDSOLID_CRM"
+          ? [{ href: "/dashboard/crm/clients", label: "CRM", icon: Users, comingSoon: false }]
+          : []),
         { href: "/dashboard/call-history", label: "Call History", icon: Phone, comingSoon: false },
-        { href: "/dashboard/settings", label: "Settings", icon: Settings, comingSoon: false },
+        // Only show Team link for business owners (not team members)
+        ...(canManageTeam
+          ? [{ href: "/dashboard/team", label: "Team", icon: Users2, comingSoon: false }]
+          : []),
         { href: "/dashboard/billing", label: "Billing", icon: CreditCard, comingSoon: false },
+        { href: "/dashboard/settings", label: "Settings", icon: Settings, comingSoon: false },
       ];
 
   const handleLogout = () => {

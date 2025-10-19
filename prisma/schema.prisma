@@ -50,17 +50,49 @@ model User {
   emailVerified DateTime?
   image         String?
   password      String?   // Hashed password for credentials login
-  role          String    @default("client") // "client" | "admin"
+  role          String    @default("client") // "client" | "admin" | "team_member"
   clientId      String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts Account[]
-  sessions Session[]
-  client   Client?   @relation(fields: [clientId], references: [id])
+  // Onboarding setup tracking
+  setupCompleted Boolean   @default(false)
+  setupDismissed Boolean   @default(false)
+  setupCompletedAt DateTime?
+
+  // CRM Preference: which CRM system to use
+  crmPreference String @default("BOOKEDSOLID_CRM") // "BOOKEDSOLID_CRM" | "EXTERNAL_CRM" | "SKIP"
+
+  // New CRM Management Fields
+  fullName         String?   // Full name from signup or Google profile
+  hasExternalCRM   Boolean?  // true = using their own CRM system
+  preferredCRM     String?   // Name of external CRM: "Square", "Fresha", "Mindbody", etc.
+  crmAccessEnabled Boolean   @default(true) // Admin can toggle CRM access on/off
+
+  // Team Management Fields
+  isTeamMember      Boolean   @default(false) // true if user is a team member (not business owner)
+  teamRole          String?   // "barber" | "stylist" | "manager" | "assistant"
+  teamPermissions   String    @default("view_only") // "view_only" | "full_access"
+  teamJoinedAt      DateTime? // When they joined the team
+  invitedById       String?   // Which user invited them
+  businessOwnerId   String?   // The business owner they work for (their User ID)
+
+  accounts     Account[]
+  sessions     Session[]
+  client       Client?        @relation(fields: [clientId], references: [id])
+  voiceClients VoiceClient[]  // Voice CRM clients owned by this user
+  appointments Appointment[]  // Appointments created by this user
+  appointmentsAsSpecialist Appointment[] @relation("AppointmentSpecialist") // Appointments assigned to this specialist
+
+  // Team relations
+  invitedBy          User?             @relation("TeamInvites", fields: [invitedById], references: [id], onDelete: SetNull)
+  teamMembers        User[]            @relation("TeamInvites")
+  sentInvitations    TeamInvitation[]  @relation("InvitedBy")
 
   @@index([email])
   @@index([clientId])
+  @@index([isTeamMember])
+  @@index([businessOwnerId])
 }
 
 model VerificationToken {
@@ -84,6 +116,13 @@ model Client {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Enhanced Contact Information
+  contactName      String?  // Full name of primary contact/owner
+  pointOfContact   String?  // Secondary contact person name
+  pocPhone         String?  // Point of contact phone number
+  pocEmail         String?  // Point of contact email
+  location         String?  // City, State for filtering and analytics
+
   // Stripe Integration
   stripeCustomerId       String?  @unique
   stripeSubscriptionId   String?  @unique
@@ -99,14 +138,17 @@ model Client {
   settings Json // ClientSettings: { voiceType, speakingSpeed, customGreeting, bookingSystem, calendarSync }
 
   // Relations
-  users       User[]
-  callRecords CallRecord[]
+  users            User[]
+  callRecords      CallRecord[]
+  teamInvitations  TeamInvitation[] // Team invitations sent for this business
 
   @@index([email])
   @@index([status])
   @@index([createdAt])
   @@index([stripeCustomerId])
   @@index([stripeSubscriptionId])
+  @@index([location])
+  @@index([stripeSubscriptionStatus])
 }
 
 model CallRecord {
@@ -141,11 +183,15 @@ model CallRecord {
   // Appointment details (embedded as JSON, nullable)
   appointmentDetails Json? // AppointmentDetails: { service, date, time, stylist, estimatedValue }
 
+  // Voice CRM Integration
+  voiceClientId      String?  // Links to VoiceClient for CRM
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  voiceClient VoiceClient? @relation(fields: [voiceClientId], references: [id], onDelete: SetNull)
 
   @@index([clientId])
   @@index([timestamp])
@@ -153,4 +199,152 @@ model CallRecord {
   @@index([retellCallId])
   @@index([callStatus])
   @@index([direction])
+  @@index([voiceClientId])
+}
+
+// Admin Settings - System Configuration
+model AdminSettings {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // System Configuration
+  companyName     String  @default("BookedSolid AI")
+  supportEmail    String  @default("support@bookedsolid.ai")
+  defaultTimezone String  @default("America/New_York")
+
+  // Notification Settings
+  notifyNewClientSignup Boolean @default(true)
+  notifyClientNearLimit Boolean @default(true)
+  notifySystemErrors    Boolean @default(true)
+  notifyWeeklyReports   Boolean @default(true)
+
+  // Email Configuration (SMTP)
+  smtpHost     String? @default("smtp.gmail.com")
+  smtpPort     Int?    @default(587)
+  smtpUsername String?
+  smtpPassword String? // Should be encrypted in production
+  fromEmail    String? @default("noreply@bookedsolid.ai")
+  smtpEnabled  Boolean @default(false)
+
+  // Security Settings
+  sessionTimeout    Int     @default(30) // minutes
+  apiRateLimit      Int     @default(1000) // requests per minute
+  twoFactorRequired Boolean @default(false)
+
+  // Additional settings as JSON for flexibility
+  customSettings Json? // { backupFrequency, storageLimit, etc. }
+}
+
+// Password Reset Tokens
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
+}
+
+// Voice Receptionist CRM Models
+
+enum ClientStatus {
+  LEAD        // Called but no appointment
+  BOOKED      // Has upcoming appointment
+  CUSTOMER    // Completed service
+  INACTIVE    // No recent activity
+}
+
+model VoiceClient {
+  id          String       @id @default(cuid())
+  phoneNumber String       // Primary identifier from calls
+  clientName  String?      // Extracted from call or manually added
+  email       String?
+  serviceType String?      // "haircut", "coloring", "mens-cut", etc.
+  notes       String?      // Receptionist notes from calls
+  status      ClientStatus @default(LEAD) // LEAD, BOOKED, CUSTOMER, INACTIVE
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  userId      String       // Which salon owns this client
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  callHistory  CallRecord[]  // Links to existing call system
+  appointments Appointment[] // Client appointments
+
+  @@index([userId])
+  @@index([phoneNumber])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Appointment Model - For BookedSolid CRM Users
+enum AppointmentStatus {
+  CONFIRMED
+  PENDING
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model Appointment {
+  id          String            @id @default(cuid())
+  date        DateTime          // Appointment date and time
+  duration    Int               // Duration in minutes
+  serviceType String            // Type of service
+  status      AppointmentStatus @default(CONFIRMED)
+  createdBy   String            // "voice_agent" or "staff_[userId]"
+  notes       String?           // Additional notes
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  // Specialist Assignment
+  specialistId String?          // ID of assigned team member/specialist
+  specialist   User?    @relation("AppointmentSpecialist", fields: [specialistId], references: [id], onDelete: SetNull)
+
+  // Relations
+  client      VoiceClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId    String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String      // Which salon/user owns this appointment
+
+  @@index([clientId])
+  @@index([userId])
+  @@index([date])
+  @@index([status])
+  @@index([specialistId])
+}
+
+// Team Invitation System
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
+model TeamInvitation {
+  id          String           @id @default(cuid())
+  email       String           // Email of person being invited
+  token       String           @unique // Unique invitation token
+  role        String           // "barber" | "stylist" | "manager" | "assistant"
+  permissions String           @default("view_only") // "view_only" | "full_access"
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime         // Invitation expiration (7 days from creation)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  // Relations
+  invitedBy   User             @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+  invitedById String           // Business owner who sent the invite
+  business    Client           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId  String           // Which business they're being invited to
+
+  @@index([email])
+  @@index([token])
+  @@index([invitedById])
+  @@index([businessId])
+  @@index([status])
 }

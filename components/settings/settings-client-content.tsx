@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { NavBar } from "@/components/dashboard/nav-bar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +14,14 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Save, Play, RefreshCw, Settings as SettingsIcon, Check } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Save, Play, RefreshCw, Settings as SettingsIcon, Check, Loader2 } from "lucide-react";
 import { ClientSettings } from "@/lib/types";
 import type { Client } from "@prisma/client";
 
@@ -37,34 +43,199 @@ export function SettingsClientContent({ client }: SettingsClientContentProps) {
   const [calendarSync, setCalendarSync] = useState(clientSettings.calendarSync ? "google" : "none");
   const [saved, setSaved] = useState(false);
 
-  const handleSaveAccount = () => {
-    // In a real app, this would save to a database
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  const handleSaveAccount = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/user/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessName,
+          email: contactEmail,
+          phone: phoneNumber,
+          timezone,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save settings");
+      }
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSaveVoice = () => {
-    // In a real app, this would save to a database
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  const handleSaveVoice = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/user/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          voiceType,
+          speakingSpeed,
+          customGreeting,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save voice settings");
+      }
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handlePreviewVoice = () => {
     window.alert("Voice preview coming soon! This will play a sample of your AI voice greeting.");
   };
 
-  const handleTestConnection = (system: string) => {
-    window.alert(`Testing connection to ${system}... Connection successful!`);
+  const handleTestConnection = async (system: string) => {
+    setTesting(true);
+    try {
+      const response = await fetch("/api/integrations/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          integrationType: "booking",
+          config: { system },
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        window.alert(`${data.message}`);
+      } else {
+        window.alert(data.message || "Connection test failed");
+      }
+    } catch (err) {
+      window.alert("Failed to test connection");
+    } finally {
+      setTesting(false);
+    }
   };
 
-  const handleSyncNow = () => {
-    window.alert("Syncing calendar... Calendar synced successfully!");
+  const handleSyncNow = async () => {
+    setTesting(true);
+    try {
+      const response = await fetch("/api/integrations/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          integrationType: "calendar",
+          config: { provider: calendarSync },
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        window.alert(`${data.message}`);
+      } else {
+        window.alert(data.message || "Sync failed");
+      }
+    } catch (err) {
+      window.alert("Failed to sync calendar");
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleSaveIntegrations = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/user/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingSystem,
+          calendarSync,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save integration settings");
+      }
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordError(null);
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError("All fields are required");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New passwords do not match");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordError("Password must be at least 8 characters");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await fetch("/api/user/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to change password");
+      }
+
+      setShowPasswordDialog(false);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : "Failed to change password");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <NavBar userName={client.businessName} userEmail={client.email} isAdmin={false} />
-
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -83,12 +254,17 @@ export function SettingsClientContent({ client }: SettingsClientContentProps) {
           </div>
         )}
 
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-800">
+            <span className="font-medium">Error: {error}</span>
+          </div>
+        )}
+
         {/* Settings Tabs */}
         <Tabs defaultValue="account" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-1">
             <TabsTrigger value="account">Account</TabsTrigger>
-            <TabsTrigger value="voice">AI Voice</TabsTrigger>
-            <TabsTrigger value="integrations">Integrations</TabsTrigger>
           </TabsList>
 
           {/* Account Settings Tab */}
@@ -148,9 +324,18 @@ export function SettingsClientContent({ client }: SettingsClientContentProps) {
                 </div>
 
                 <div className="pt-4">
-                  <Button onClick={handleSaveAccount}>
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Changes
+                  <Button onClick={handleSaveAccount} disabled={saving}>
+                    {saving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Changes
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
@@ -162,7 +347,9 @@ export function SettingsClientContent({ client }: SettingsClientContentProps) {
                 <div>
                   <Label>Password</Label>
                   <div className="mt-2">
-                    <Button variant="outline">Change Password</Button>
+                    <Button variant="outline" onClick={() => setShowPasswordDialog(true)}>
+                      Change Password
+                    </Button>
                   </div>
                 </div>
 
@@ -178,171 +365,81 @@ export function SettingsClientContent({ client }: SettingsClientContentProps) {
               </div>
             </Card>
           </TabsContent>
-
-          {/* AI Voice Settings Tab */}
-          <TabsContent value="voice" className="space-y-6">
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">AI Voice Settings</h2>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="voiceType">Voice Type</Label>
-                  <Select value={voiceType} onValueChange={setVoiceType}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="female-professional">Female - Professional</SelectItem>
-                      <SelectItem value="female-friendly">Female - Friendly</SelectItem>
-                      <SelectItem value="male-professional">Male - Professional</SelectItem>
-                      <SelectItem value="male-friendly">Male - Friendly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="speakingSpeed">Speaking Speed</Label>
-                  <Select value={speakingSpeed} onValueChange={setSpeakingSpeed}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="slow">Slow</SelectItem>
-                      <SelectItem value="normal">Normal</SelectItem>
-                      <SelectItem value="fast">Fast</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="customGreeting">Custom Greeting</Label>
-                  <textarea
-                    id="customGreeting"
-                    value={customGreeting}
-                    onChange={(e) => setCustomGreeting(e.target.value)}
-                    placeholder="Enter your custom greeting message..."
-                    className="mt-1 w-full min-h-[100px] p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                  <p className="text-sm text-gray-500 mt-1">
-                    This is the first message callers will hear when they call your business.
-                  </p>
-                </div>
-
-                <div className="pt-4 flex gap-2">
-                  <Button onClick={handleSaveVoice}>
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Changes
-                  </Button>
-                  <Button variant="outline" onClick={handlePreviewVoice}>
-                    <Play className="h-4 w-4 mr-2" />
-                    Preview Voice
-                  </Button>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6 bg-purple-50 border-purple-200">
-              <h3 className="font-semibold mb-2">💡 Tips for a Great Greeting</h3>
-              <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
-                <li>Keep it brief (under 15 seconds)</li>
-                <li>Include your business name</li>
-                <li>Sound warm and welcoming</li>
-                <li>Set expectations (e.g., &quot;I can help you book an appointment&quot;)</li>
-              </ul>
-            </Card>
-          </TabsContent>
-
-          {/* Integrations Tab */}
-          <TabsContent value="integrations" className="space-y-6">
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Booking System</h2>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="bookingSystem">Select Your Booking System</Label>
-                  <Select value={bookingSystem} onValueChange={setBookingSystem}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="square">Square Appointments</SelectItem>
-                      <SelectItem value="vagaro">Vagaro</SelectItem>
-                      <SelectItem value="mindbody">Mindbody</SelectItem>
-                      <SelectItem value="schedulicity">Schedulicity</SelectItem>
-                      <SelectItem value="booksy">Booksy</SelectItem>
-                      <SelectItem value="other">Other / Manual</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
-                  <Badge className="bg-green-500">✅ Connected</Badge>
-                  <span className="text-sm text-gray-700">
-                    Last synced: 2 minutes ago
-                  </span>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleTestConnection(bookingSystem)}
-                  >
-                    Test Connection
-                  </Button>
-                  <Button variant="outline">
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Reconnect
-                  </Button>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Calendar Sync</h2>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="calendarSync">Select Calendar Service</Label>
-                  <Select value={calendarSync} onValueChange={setCalendarSync}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="google">Google Calendar</SelectItem>
-                      <SelectItem value="outlook">Outlook Calendar</SelectItem>
-                      <SelectItem value="apple">Apple iCloud Calendar</SelectItem>
-                      <SelectItem value="none">None</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
-                  <Badge className="bg-green-500">✅ Synced</Badge>
-                  <span className="text-sm text-gray-700">
-                    Last sync: 2 minutes ago
-                  </span>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={handleSyncNow}>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Sync Now
-                  </Button>
-                  <Button variant="outline">Manage Integrations</Button>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6 bg-blue-50 border-blue-200">
-              <h3 className="font-semibold mb-2">🔌 Need Help with Integrations?</h3>
-              <p className="text-sm text-gray-700 mb-3">
-                Our team can help you set up integrations with your existing booking and calendar
-                systems.
-              </p>
-              <Button variant="outline" size="sm">
-                Contact Support
-              </Button>
-            </Card>
-          </TabsContent>
         </Tabs>
+
+        {/* Change Password Dialog */}
+      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {passwordError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
+                {passwordError}
+              </div>
+            )}
+            <div>
+              <Label htmlFor="currentPassword">Current Password</Label>
+              <Input
+                id="currentPassword"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="Enter current password"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="newPassword">New Password</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="confirmPassword">Confirm New Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPasswordDialog(false);
+                setPasswordError(null);
+                setCurrentPassword("");
+                setNewPassword("");
+                setConfirmPassword("");
+              }}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleChangePassword} disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Changing...
+                </>
+              ) : (
+                "Change Password"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </main>
-    </div>
   );
 }

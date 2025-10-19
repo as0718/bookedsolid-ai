@@ -82,6 +82,15 @@ export async function GET(
       timezone: client.timezone,
       createdAt: client.createdAt.toISOString(),
       updatedAt: client.updatedAt.toISOString(),
+      billingInterval: client.billingInterval,
+      contactName: client.contactName,
+      pointOfContact: client.pointOfContact,
+      pocPhone: client.pocPhone,
+      pocEmail: client.pocEmail,
+      location: client.location,
+      stripeSubscriptionStatus: client.stripeSubscriptionStatus,
+      stripeSubscriptionId: client.stripeSubscriptionId,
+      stripeCustomerId: client.stripeCustomerId,
       billing: client.billing,
       settings: client.settings,
       users: client.users.map((u) => ({
@@ -139,6 +148,11 @@ export async function PUT(
       timezone,
       billing,
       settings,
+      contactName,
+      pointOfContact,
+      pocPhone,
+      pocEmail,
+      location,
     } = body;
 
     // Check if client exists
@@ -176,6 +190,11 @@ export async function PUT(
         ...(timezone && { timezone }),
         ...(billing && { billing }),
         ...(settings && { settings }),
+        ...(contactName !== undefined && { contactName }),
+        ...(pointOfContact !== undefined && { pointOfContact }),
+        ...(pocPhone !== undefined && { pocPhone }),
+        ...(pocEmail !== undefined && { pocEmail }),
+        ...(location !== undefined && { location }),
       },
     });
 
@@ -190,6 +209,11 @@ export async function PUT(
         timezone: client.timezone,
         createdAt: client.createdAt.toISOString(),
         updatedAt: client.updatedAt.toISOString(),
+        contactName: client.contactName,
+        pointOfContact: client.pointOfContact,
+        pocPhone: client.pocPhone,
+        pocEmail: client.pocEmail,
+        location: client.location,
         billing: client.billing,
         settings: client.settings,
       },
@@ -200,14 +224,14 @@ export async function PUT(
   }
 }
 
-// DELETE - Delete client (admin only)
+// DELETE - Delete client account while preserving CRM customer data (admin only)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
-    const user = session?.user as { role?: string } | undefined;
+    const user = session?.user as { role?: string; email?: string } | undefined;
 
     if (!session || !user || user.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -215,23 +239,124 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Check if client exists
+    // Get client with all related data
     const existingClient = await prisma.client.findUnique({
       where: { id },
+      include: {
+        users: {
+          include: {
+            voiceClients: true,
+            appointments: true,
+          },
+        },
+        callRecords: true,
+      },
     });
 
     if (!existingClient) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    // Delete client (cascade will delete related records)
+    // Get or create a system user to hold orphaned CRM records
+    // This preserves VoiceClient records even after the business account is deleted
+    let systemUser = await prisma.user.findFirst({
+      where: {
+        email: "system-orphaned-crm@bookedsolid.internal",
+        role: "admin",
+      },
+    });
+
+    if (!systemUser) {
+      systemUser = await prisma.user.create({
+        data: {
+          email: "system-orphaned-crm@bookedsolid.internal",
+          name: "System - Orphaned CRM Records",
+          role: "admin",
+          setupCompleted: true,
+        },
+      });
+    }
+
+    // Calculate what will be deleted
+    const totalVoiceClients = existingClient.users.reduce(
+      (sum, u) => sum + u.voiceClients.length,
+      0
+    );
+    const totalAppointments = existingClient.users.reduce(
+      (sum, u) => sum + u.appointments.length,
+      0
+    );
+    const totalCalls = existingClient.callRecords.length;
+
+    // Step 1: Transfer all VoiceClient records to system user to preserve them
+    for (const clientUser of existingClient.users) {
+      if (clientUser.voiceClients.length > 0) {
+        // First, transfer ownership to system user
+        await prisma.voiceClient.updateMany({
+          where: { userId: clientUser.id },
+          data: {
+            userId: systemUser.id,
+          },
+        });
+
+        // Then, add preservation note to each voice client individually
+        for (const vc of clientUser.voiceClients) {
+          const currentNotes = vc.notes || "";
+          const preservationNote = `\n\n[PRESERVED FROM DELETED ACCOUNT: ${existingClient.businessName} (${clientUser.email || clientUser.name}) - ${new Date().toISOString()}]`;
+
+          await prisma.voiceClient.update({
+            where: { id: vc.id },
+            data: {
+              notes: currentNotes + preservationNote,
+            },
+          });
+        }
+      }
+    }
+
+    // Step 2: Delete appointments (will cascade delete)
+    for (const clientUser of existingClient.users) {
+      await prisma.appointment.deleteMany({
+        where: { userId: clientUser.id },
+      });
+    }
+
+    // Step 3: Delete call records for this client
+    await prisma.callRecord.deleteMany({
+      where: { clientId: id },
+    });
+
+    // Step 4: Delete all users associated with this client
+    await prisma.user.deleteMany({
+      where: { clientId: id },
+    });
+
+    // Step 5: Finally delete the client business account
     await prisma.client.delete({
       where: { id },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      deleted: {
+        businessAccount: existingClient.businessName,
+        users: existingClient.users.length,
+        appointments: totalAppointments,
+        callRecords: totalCalls,
+      },
+      preserved: {
+        voiceClients: totalVoiceClients,
+        message: `${totalVoiceClients} CRM customer records have been preserved and can be accessed by admins`,
+      },
+    });
   } catch (error) {
     console.error("Error deleting client:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
+    );
   }
 }
