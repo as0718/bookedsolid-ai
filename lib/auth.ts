@@ -79,6 +79,8 @@ export const authOptions: NextAuthOptions = {
       // Handle Google OAuth sign-in
       if (account?.provider === "google" && user.email) {
         try {
+          console.log("[Auth] Google OAuth sign-in attempt for:", user.email);
+
           // Check if user exists
           const existingUser = await prisma.user.findUnique({
             where: { email: user.email },
@@ -183,7 +185,12 @@ export const authOptions: NextAuthOptions = {
 
           return true;
         } catch (error) {
-          console.error("[Auth] Error during Google OAuth sign-in:", error);
+          console.error("[Auth] ERROR during Google OAuth sign-in:", error);
+          console.error("[Auth] Error details:", {
+            name: (error as Error).name,
+            message: (error as Error).message,
+            stack: (error as Error).stack,
+          });
           return false;
         }
       }
