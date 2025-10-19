@@ -4,12 +4,11 @@
 
 [build.environment]
   NODE_VERSION = "18.18.0"
-  # Note: Set actual environment variables in Netlify dashboard
+  NEXT_PRIVATE_TARGET = "server"
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+# Enable Essential Next.js plugin
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 
 # Headers for security
 [[headers]]

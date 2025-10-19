@@ -14,7 +14,12 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Image optimization (if using Next.js Image component)
   images: {
-    domains: ["images.unsplash.com"], // Add any external image domains here
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
+    ],
   },
 };
 
