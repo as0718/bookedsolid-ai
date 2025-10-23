@@ -60,9 +60,12 @@ export default function CRMPreferenceModal({ isOpen, onComplete }: CRMPreference
             <div className="mx-auto w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center mb-4">
               <Building2 className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-3xl font-bold mb-2">CRM System Setup</h2>
-            <p className="text-gray-600 text-lg">
-              Do you already have a CRM system for your business?
+            <h2 className="text-3xl font-bold mb-2">Welcome to BookedSolid! 👋</h2>
+            <p className="text-gray-600 text-lg mb-1">
+              Let's get you set up in just 2 quick steps
+            </p>
+            <p className="text-gray-500 text-sm">
+              Step 1 of 2: CRM Selection
             </p>
           </div>
 
@@ -185,7 +188,7 @@ export default function CRMPreferenceModal({ isOpen, onComplete }: CRMPreference
                   Saving...
                 </>
               ) : (
-                'Continue to Dashboard'
+                'Continue to Plan Selection →'
               )}
             </Button>
           </div>

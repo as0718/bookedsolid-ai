@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 
+// Password validation: minimum 8 characters with at least 1 number
+const PASSWORD_REGEX = /^(?=.*\d).{8,}$/;
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -22,9 +25,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if user already exists
+    // Normalize email to lowercase and trim whitespace
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Validate password requirements
+    if (!PASSWORD_REGEX.test(password)) {
+      return NextResponse.json(
+        {
+          error: 'Password must be at least 8 characters long and contain at least 1 number',
+          passwordStrength: 'weak'
+        },
+        { status: 400 }
+      );
+    }
+
+    // Check if user already exists (using normalized email)
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
@@ -47,7 +64,7 @@ export async function POST(req: NextRequest) {
       data: {
         businessName,
         contactName: name, // Store contact name for display in admin dashboard
-        email,
+        email: normalizedEmail, // Use normalized email
         phone,
         plan,
         status: "active",
@@ -74,12 +91,13 @@ export async function POST(req: NextRequest) {
       data: {
         name,
         fullName: name, // Store in fullName field for consistency with Google OAuth
-        email,
+        email: normalizedEmail, // Use normalized email
         password: hashedPassword,
         role: "client",
         clientId: newClient.id,
         setupCompleted: false, // Show setup modal on first login
         setupDismissed: false,
+        passwordChangedAt: new Date(), // Track when password was set
       },
     });
 

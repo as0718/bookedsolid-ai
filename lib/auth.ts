@@ -27,32 +27,94 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
 
         try {
+          // Normalize email to lowercase
+          const normalizedEmail = credentials.email.toLowerCase().trim();
+
           // Look up user in database
           const user = await prisma.user.findUnique({
-            where: { email: credentials.email },
+            where: { email: normalizedEmail },
             include: {
               client: true,
             },
           });
 
           if (!user || !user.password) {
-            console.log("[Auth] User not found or no password set:", credentials.email);
+            console.log("[Auth] User not found or no password set:", normalizedEmail);
             return null;
+          }
+
+          // Check if account is locked
+          if (user.accountLockedUntil && new Date(user.accountLockedUntil) > new Date()) {
+            const minutesRemaining = Math.ceil((new Date(user.accountLockedUntil).getTime() - Date.now()) / 1000 / 60);
+            console.log(`[Auth] Account locked for user ${normalizedEmail}, ${minutesRemaining} minutes remaining`);
+            return null;
+          }
+
+          // Check if account lockout has expired
+          if (user.accountLockedUntil && new Date(user.accountLockedUntil) <= new Date()) {
+            // Reset failed login attempts since lockout has expired
+            await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                accountLockedUntil: null,
+                failedLoginAttempts: 0,
+              },
+            });
           }
 
           // Verify password using bcrypt
           const isValidPassword = await bcrypt.compare(credentials.password, user.password);
 
           if (!isValidPassword) {
-            console.log("[Auth] Invalid password for user:", credentials.email);
+            console.log("[Auth] Invalid password for user:", normalizedEmail);
+
+            // Increment failed login attempts
+            const failedAttempts = (user.failedLoginAttempts || 0) + 1;
+            const now = new Date();
+
+            // Lock account after 5 failed attempts for 15 minutes
+            const shouldLockAccount = failedAttempts >= 5;
+            const lockUntil = shouldLockAccount ? new Date(now.getTime() + 15 * 60 * 1000) : null;
+
+            await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                failedLoginAttempts: failedAttempts,
+                lastFailedLoginAt: now,
+                lastFailedLoginIp: req?.headers?.get?.('x-forwarded-for') || req?.headers?.get?.('x-real-ip') || 'unknown',
+                accountLockedUntil: lockUntil,
+              },
+            });
+
+            if (shouldLockAccount) {
+              console.log(`[Auth] Account locked for user ${normalizedEmail} after ${failedAttempts} failed attempts`);
+            }
+
             return null;
           }
+
+          // Check if password change is forced
+          if (user.forcePasswordChange) {
+            console.log("[Auth] User must change password:", normalizedEmail);
+            // Allow login but flag for password change
+          }
+
+          // Successful login - reset failed attempts and update last login
+          await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              failedLoginAttempts: 0,
+              accountLockedUntil: null,
+              lastLoginAt: new Date(),
+              lastLoginIp: req?.headers?.get?.('x-forwarded-for') || req?.headers?.get?.('x-real-ip') || 'unknown',
+            },
+          });
 
           // Determine role and clientId
           const role = user.role || "client";
@@ -66,6 +128,9 @@ export const authOptions: NextAuthOptions = {
             name: user.name || user.email,
             role,
             clientId,
+            isTeamMember: user.isTeamMember || false,
+            teamPermissions: user.teamPermissions || null,
+            forcePasswordChange: user.forcePasswordChange || false,
           };
         } catch (error) {
           console.error("[Auth] Error during authentication:", error);
@@ -79,27 +144,29 @@ export const authOptions: NextAuthOptions = {
       // Handle Google OAuth sign-in
       if (account?.provider === "google" && user.email) {
         try {
-          console.log("[Auth] Google OAuth sign-in attempt for:", user.email);
+          // Normalize email to lowercase
+          const normalizedEmail = user.email.toLowerCase().trim();
+          console.log("[Auth] Google OAuth sign-in attempt for:", normalizedEmail);
 
           // Check if user exists
           const existingUser = await prisma.user.findUnique({
-            where: { email: user.email },
+            where: { email: normalizedEmail },
             include: { client: true },
           });
 
           // If user doesn't exist, create them with a client
           if (!existingUser) {
-            console.log("[Auth] Creating new user from Google OAuth:", user.email);
+            console.log("[Auth] Creating new user from Google OAuth:", normalizedEmail);
 
             // Extract full name from Google profile
-            const fullName = user.name || user.email.split('@')[0];
+            const fullName = user.name || normalizedEmail.split('@')[0];
 
             // Create client first
             const newClient = await prisma.client.create({
               data: {
                 businessName: fullName,
                 contactName: fullName, // Store contact name for display in admin dashboard
-                email: user.email,
+                email: normalizedEmail,
                 phone: "",
                 plan: "missed",
                 status: "active",
@@ -122,7 +189,7 @@ export const authOptions: NextAuthOptions = {
             // Create user linked to client with full name
             await prisma.user.create({
               data: {
-                email: user.email,
+                email: normalizedEmail,
                 name: fullName,
                 fullName: fullName, // Store in fullName field for consistency
                 image: user.image,
@@ -131,19 +198,19 @@ export const authOptions: NextAuthOptions = {
               },
             });
 
-            console.log("[Auth] Successfully created user and client for:", user.email);
+            console.log("[Auth] Successfully created user and client for:", normalizedEmail);
           } else if (!existingUser.clientId) {
             // User exists but has no client - create one
-            console.log("[Auth] User exists without client, creating client for:", user.email);
+            console.log("[Auth] User exists without client, creating client for:", normalizedEmail);
 
             // Extract full name from Google profile
-            const fullName = user.name || user.email.split('@')[0];
+            const fullName = user.name || normalizedEmail.split('@')[0];
 
             const newClient = await prisma.client.create({
               data: {
                 businessName: fullName,
                 contactName: fullName, // Store contact name for display in admin dashboard
-                email: user.email,
+                email: normalizedEmail,
                 phone: "",
                 plan: "missed",
                 status: "active",
@@ -165,19 +232,19 @@ export const authOptions: NextAuthOptions = {
 
             // Update user with clientId and full name
             await prisma.user.update({
-              where: { email: user.email },
+              where: { email: normalizedEmail },
               data: {
                 clientId: newClient.id,
                 fullName: fullName, // Update fullName if not already set
               },
             });
 
-            console.log("[Auth] Successfully linked client to existing user:", user.email);
+            console.log("[Auth] Successfully linked client to existing user:", normalizedEmail);
           } else {
             // User exists with client - update fullName if not already set
             if (!existingUser.fullName && user.name) {
               await prisma.user.update({
-                where: { email: user.email },
+                where: { email: normalizedEmail },
                 data: { fullName: user.name },
               });
             }
@@ -203,6 +270,8 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = (user as { role?: string }).role;
         token.clientId = (user as { clientId?: string }).clientId;
+        token.isTeamMember = (user as { isTeamMember?: boolean }).isTeamMember;
+        token.teamPermissions = (user as { teamPermissions?: string }).teamPermissions;
       }
 
       // Handle Google OAuth - look up user in database for role assignment
@@ -217,6 +286,8 @@ export const authOptions: NextAuthOptions = {
             token.id = dbUser.id;
             token.role = dbUser.role || "client";
             token.clientId = dbUser.client?.id || null;
+            token.isTeamMember = dbUser.isTeamMember || false;
+            token.teamPermissions = dbUser.teamPermissions || null;
           }
         } catch (error) {
           console.error("[Auth] Error looking up Google OAuth user:", error);
@@ -228,9 +299,11 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       // Add user data from JWT token to session
       if (session.user && token) {
-        (session.user as { id?: string; role?: string; clientId?: string }).id = token.id as string;
-        (session.user as { id?: string; role?: string; clientId?: string }).role = token.role as string;
-        (session.user as { id?: string; role?: string; clientId?: string }).clientId = token.clientId as string;
+        (session.user as { id?: string; role?: string; clientId?: string; isTeamMember?: boolean; teamPermissions?: string }).id = token.id as string;
+        (session.user as { id?: string; role?: string; clientId?: string; isTeamMember?: boolean; teamPermissions?: string }).role = token.role as string;
+        (session.user as { id?: string; role?: string; clientId?: string; isTeamMember?: boolean; teamPermissions?: string }).clientId = token.clientId as string;
+        (session.user as { id?: string; role?: string; clientId?: string; isTeamMember?: boolean; teamPermissions?: string }).isTeamMember = token.isTeamMember as boolean;
+        (session.user as { id?: string; role?: string; clientId?: string; isTeamMember?: boolean; teamPermissions?: string }).teamPermissions = token.teamPermissions as string;
       }
       return session;
     },

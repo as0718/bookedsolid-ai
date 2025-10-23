@@ -5,7 +5,7 @@ import { ComingSoonDialog } from "@/components/ui/coming-soon-dialog";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Phone, Settings, CreditCard, LogOut, Menu, X, Users, Users2 } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, CreditCard, LogOut, Menu, X, Users, Users2, Calendar, CalendarClock, ClipboardList } from "lucide-react";
 import { useState, useTransition } from "react";
 
 interface NavBarProps {
@@ -14,9 +14,10 @@ interface NavBarProps {
   isAdmin?: boolean;
   crmPreference?: string; // "BOOKEDSOLID_CRM" | "EXTERNAL_CRM" | "SKIP"
   canManageTeam?: boolean;
+  isTeamMember?: boolean;
 }
 
-export function NavBar({ userName, userEmail, isAdmin = false, crmPreference = "BOOKEDSOLID_CRM", canManageTeam = false }: NavBarProps) {
+export function NavBar({ userName, userEmail, isAdmin = false, crmPreference = "BOOKEDSOLID_CRM", canManageTeam = false, isTeamMember = false }: NavBarProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [comingSoonOpen, setComingSoonOpen] = useState(false);
@@ -35,13 +36,33 @@ export function NavBar({ userName, userEmail, isAdmin = false, crmPreference = "
         ...(crmPreference === "BOOKEDSOLID_CRM"
           ? [{ href: "/dashboard/crm/clients", label: "CRM", icon: Users, comingSoon: false }]
           : []),
-        { href: "/dashboard/call-history", label: "Call History", icon: Phone, comingSoon: false },
+        // Only show Calendar if user chose BOOKEDSOLID_CRM (part of CRM features)
+        ...(crmPreference === "BOOKEDSOLID_CRM"
+          ? [{ href: "/dashboard/crm/appointments", label: "Calendar", icon: Calendar, comingSoon: false }]
+          : []),
+        // Show Time Off for team members using CRM
+        ...(crmPreference === "BOOKEDSOLID_CRM" && isTeamMember
+          ? [{ href: "/dashboard/time-off", label: "Time Off", icon: CalendarClock, comingSoon: false }]
+          : []),
+        // Hide Call History for team members
+        ...(!isTeamMember
+          ? [{ href: "/dashboard/call-history", label: "Call History", icon: Phone, comingSoon: false }]
+          : []),
         // Only show Team link for business owners (not team members)
         ...(canManageTeam
           ? [{ href: "/dashboard/team", label: "Team", icon: Users2, comingSoon: false }]
           : []),
-        { href: "/dashboard/billing", label: "Billing", icon: CreditCard, comingSoon: false },
-        { href: "/dashboard/settings", label: "Settings", icon: Settings, comingSoon: false },
+        // Show Team Schedules for business owners with CRM enabled (not team members)
+        ...(crmPreference === "BOOKEDSOLID_CRM" && !isTeamMember && canManageTeam
+          ? [{ href: "/dashboard/team-schedules", label: "Team Schedules", icon: ClipboardList, comingSoon: false }]
+          : []),
+        // Hide Billing and Settings for team members
+        ...(!isTeamMember
+          ? [{ href: "/dashboard/billing", label: "Billing", icon: CreditCard, comingSoon: false }]
+          : []),
+        ...(!isTeamMember
+          ? [{ href: "/dashboard/settings", label: "Settings", icon: Settings, comingSoon: false }]
+          : []),
       ];
 
   const handleLogout = () => {

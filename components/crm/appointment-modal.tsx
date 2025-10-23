@@ -20,6 +20,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ClientModal } from "@/components/crm/client-modal";
+import { Plus } from "lucide-react";
 
 interface Appointment {
   id: string;
@@ -36,6 +38,14 @@ interface TeamMember {
   id: string;
   name: string;
   teamRole?: string;
+}
+
+interface CurrentUser {
+  id: string;
+  name: string;
+  email: string;
+  teamRole?: string;
+  isTeamMember: boolean;
 }
 
 interface VoiceClient {
@@ -66,10 +76,13 @@ export function AppointmentModal({
 }: AppointmentModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [businessOwner, setBusinessOwner] = useState<TeamMember | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loadingTeam, setLoadingTeam] = useState(false);
   const [clients, setClients] = useState<VoiceClient[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
+  const [showClientModal, setShowClientModal] = useState(false);
   const [formData, setFormData] = useState({
     clientId: clientId || "",
     date: prefilledDate || "",
@@ -78,7 +91,7 @@ export function AppointmentModal({
     serviceType: "",
     status: "CONFIRMED" as "CONFIRMED" | "PENDING" | "COMPLETED" | "CANCELLED" | "NO_SHOW",
     notes: "",
-    specialistId: "unassigned",
+    specialistId: "", // Will be set to current user ID after fetch
   });
 
   // Fetch team members and clients when modal opens (optimized to run only once per open)
@@ -98,7 +111,17 @@ export function AppointmentModal({
 
         if (teamResponse.ok) {
           const teamData = await teamResponse.json();
+          setCurrentUser(teamData.currentUser || null);
+          setBusinessOwner(teamData.businessOwner || null);
           setTeamMembers(teamData.teamMembers || []);
+
+          // Set default specialist to current user when creating new appointment
+          if (!appointment && teamData.currentUser) {
+            setFormData(prev => ({
+              ...prev,
+              specialistId: teamData.currentUser.id,
+            }));
+          }
         }
 
         if (clientsResponse && clientsResponse.ok) {
@@ -114,7 +137,7 @@ export function AppointmentModal({
     };
 
     fetchData();
-  }, [open, clientId]);
+  }, [open, clientId, appointment]);
 
   // Reset form when modal opens or appointment changes
   useEffect(() => {
@@ -137,6 +160,7 @@ export function AppointmentModal({
         });
       } else {
         // Add mode - use prefilled data or defaults
+        // Default to current user if available, otherwise unassigned
         setFormData({
           clientId: clientId || "",
           date: prefilledDate || "",
@@ -145,12 +169,12 @@ export function AppointmentModal({
           serviceType: "",
           status: "CONFIRMED",
           notes: "",
-          specialistId: "unassigned",
+          specialistId: currentUser?.id || "",
         });
       }
       setError("");
     }
-  }, [open, appointment, clientId, prefilledDate, prefilledTime]);
+  }, [open, appointment, clientId, prefilledDate, prefilledTime, currentUser]);
 
   // Optimized submit handler with useCallback
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
@@ -218,6 +242,29 @@ export function AppointmentModal({
     setFormData(prev => ({ ...prev, [field]: value }));
   }, []);
 
+  // Handle successful client creation
+  const handleClientCreated = useCallback(async () => {
+    setShowClientModal(false);
+    // Refetch clients to get the newly created client
+    setLoadingClients(true);
+    try {
+      const response = await fetch("/api/voice-clients");
+      if (response.ok) {
+        const clientsData = await response.json();
+        setClients(clientsData || []);
+        // Auto-select the most recently created client (last in array)
+        if (clientsData && clientsData.length > 0) {
+          const newestClient = clientsData[clientsData.length - 1];
+          setFormData(prev => ({ ...prev, clientId: newestClient.id }));
+        }
+      }
+    } catch (err) {
+      console.error("Error refetching clients:", err);
+    } finally {
+      setLoadingClients(false);
+    }
+  }, []);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -236,9 +283,21 @@ export function AppointmentModal({
           {/* Client Selection - Only show if clientId not provided */}
           {!clientId && (
             <div className="space-y-2">
-              <Label htmlFor="client">
-                Client <span className="text-red-500">*</span>
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="client">
+                  Client <span className="text-red-500">*</span>
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowClientModal(true)}
+                  className="text-purple-600 hover:text-purple-700 h-auto py-1 px-2"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add New Client
+                </Button>
+              </div>
               <Select
                 value={formData.clientId}
                 onValueChange={(value) => updateFormField("clientId", value)}
@@ -340,27 +399,56 @@ export function AppointmentModal({
             </Select>
           </div>
 
-          {/* Specialist */}
+          {/* Specialist - Assignment Dropdown with "Me-First" Logic */}
           <div className="space-y-2">
-            <Label htmlFor="specialist">Assigned Specialist</Label>
+            <Label htmlFor="specialist">Assign To</Label>
             <Select
               value={formData.specialistId}
               onValueChange={(value) => updateFormField("specialistId", value)}
               disabled={loading || loadingTeam}
             >
               <SelectTrigger>
-                <SelectValue placeholder={loadingTeam ? "Loading team..." : "Select specialist (optional)"} />
+                <SelectValue placeholder={loadingTeam ? "Loading..." : "Select who to assign"} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {/* Current User - "Me" Option (shown first) */}
+                {currentUser && (
+                  <SelectItem value={currentUser.id}>
+                    Me ({currentUser.name})
+                    {currentUser.teamRole && ` - ${currentUser.teamRole}`}
+                  </SelectItem>
+                )}
+
+                {/* Business Owner (if current user is a team member) */}
+                {businessOwner && (
+                  <SelectItem value={businessOwner.id}>
+                    {businessOwner.name} (Owner)
+                    {businessOwner.teamRole && ` - ${businessOwner.teamRole}`}
+                  </SelectItem>
+                )}
+
+                {/* Separator for other team members */}
+                {teamMembers.length > 0 && (currentUser || businessOwner) && (
+                  <SelectItem value="separator" disabled className="text-xs text-gray-500 font-semibold">
+                    ── Other Team Members ──
+                  </SelectItem>
+                )}
+
+                {/* Other Team Members */}
                 {teamMembers.map((member) => (
                   <SelectItem key={member.id} value={member.id}>
                     {member.name}
                     {member.teamRole && ` - ${member.teamRole}`}
                   </SelectItem>
                 ))}
+
+                {/* Unassigned Option (at the end) */}
+                <SelectItem value="unassigned">Unassigned</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-gray-500">
+              Defaults to you. Choose another team member to delegate this appointment.
+            </p>
           </div>
 
           {/* Status */}
@@ -428,6 +516,13 @@ export function AppointmentModal({
           </DialogFooter>
         </form>
       </DialogContent>
+
+      {/* Client Creation Modal */}
+      <ClientModal
+        open={showClientModal}
+        onOpenChange={setShowClientModal}
+        onSuccess={handleClientCreated}
+      />
     </Dialog>
   );
 }

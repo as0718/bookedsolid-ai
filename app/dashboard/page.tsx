@@ -19,11 +19,19 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // Fetch user data including CRM preference
+  // Fetch user data including CRM preference and team member status
   const userData = await prisma.user.findUnique({
     where: { email: user.email },
-    select: { crmPreference: true },
+    select: {
+      crmPreference: true,
+      isTeamMember: true,
+    },
   });
+
+  // Redirect team members to their personal dashboard
+  if (userData?.isTeamMember) {
+    redirect("/dashboard/my-dashboard");
+  }
 
   // Fetch client data from database
   const client = await prisma.client.findUnique({

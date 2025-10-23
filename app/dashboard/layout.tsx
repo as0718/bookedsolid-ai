@@ -17,6 +17,7 @@ export default async function DashboardLayout({
   let user = null;
   let userData = null;
   let showCRMPreferenceModal = false;
+  let showServicesSetupModal = false;
 
   if (userEmail) {
     user = await prisma.user.findUnique({
@@ -28,6 +29,7 @@ export default async function DashboardLayout({
         setupCompleted: true,
         setupDismissed: true,
         clientId: true,
+        hasExternalCRM: true,
       },
     });
 
@@ -44,16 +46,22 @@ export default async function DashboardLayout({
       },
     });
 
-    // Show CRM preference modal if:
+    // Show CRM preference modal FIRST if:
     // 1. User is a client (not admin)
-    // 2. Setup is completed or dismissed (billing is done)
-    // 3. CRM preference hasn't been explicitly set yet
+    // 2. CRM preference hasn't been explicitly set yet (regardless of setup status)
     if (
       userData?.role === 'client' &&
-      (userData?.setupCompleted || userData?.setupDismissed) &&
       userData?.hasExternalCRM === null
     ) {
       showCRMPreferenceModal = true;
+    }
+
+    // Show services setup modal for team members who haven't completed setup
+    if (
+      userData?.isTeamMember &&
+      !userData?.setupCompleted
+    ) {
+      showServicesSetupModal = true;
     }
   }
 
@@ -74,9 +82,13 @@ export default async function DashboardLayout({
           isAdmin={userData?.role === "admin"}
           crmPreference={shouldShowCRM ? "BOOKEDSOLID_CRM" : "EXTERNAL_CRM"}
           canManageTeam={canManageTeam}
+          isTeamMember={userData?.isTeamMember || false}
         />
         {children}
-        <ModalWrapper showCRMPreferenceModal={showCRMPreferenceModal} />
+        <ModalWrapper
+          showCRMPreferenceModal={showCRMPreferenceModal}
+          showServicesSetupModal={showServicesSetupModal}
+        />
       </div>
     </SetupProvider>
   );

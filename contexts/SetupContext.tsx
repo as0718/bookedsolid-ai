@@ -9,6 +9,7 @@ interface User {
   setupCompleted?: boolean;
   setupDismissed?: boolean;
   clientId?: string;
+  hasExternalCRM?: boolean | null;
 }
 
 interface SetupContextType {
@@ -32,8 +33,12 @@ export function SetupProvider({ children, user }: SetupProviderProps) {
   const [setupCompleted, setSetupCompleted] = useState(false);
 
   useEffect(() => {
-    // Show setup modal if user is logged in, hasn't completed setup, and hasn't dismissed it
-    if (user && !user.setupCompleted && !user.setupDismissed) {
+    // Show setup modal if:
+    // 1. User is logged in
+    // 2. Hasn't completed setup and hasn't dismissed it
+    // 3. Has already set CRM preference (hasExternalCRM is not null)
+    // This ensures CRM selection happens BEFORE price selection
+    if (user && !user.setupCompleted && !user.setupDismissed && user.hasExternalCRM !== null) {
       setShowSetup(true);
     } else {
       setShowSetup(false);

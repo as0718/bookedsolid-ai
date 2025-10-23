@@ -74,6 +74,10 @@ export async function POST(req: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create the team member user account
+    // Team members need to complete services onboarding:
+    // - setupCompleted: false (triggers services onboarding modal)
+    // - setupDismissed: true (skip pricing/CRM modals)
+    // - hasExternalCRM: false (skip CRM preference modal)
     const teamMember = await prisma.user.create({
       data: {
         email: invitation.email,
@@ -88,6 +92,9 @@ export async function POST(req: NextRequest) {
         invitedById: invitation.invitedById,
         businessOwnerId: invitation.invitedById,
         clientId: invitation.businessId, // Link to the business
+        setupCompleted: false, // Trigger services onboarding modal
+        setupDismissed: true, // Skip pricing modal
+        hasExternalCRM: false, // Skip CRM preference modal
       },
     });
 

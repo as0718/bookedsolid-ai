@@ -52,7 +52,7 @@ export function ClientModal({
     email: "",
     serviceType: "",
     notes: "",
-    status: "LEAD" as "LEAD" | "BOOKED" | "CUSTOMER" | "INACTIVE",
+    status: "CUSTOMER" as "LEAD" | "BOOKED" | "CUSTOMER" | "INACTIVE",
   });
 
   // Reset form when modal opens or client changes
@@ -76,7 +76,7 @@ export function ClientModal({
           email: "",
           serviceType: "",
           notes: "",
-          status: "LEAD",
+          status: "CUSTOMER",
         });
       }
       setError("");
@@ -249,9 +249,8 @@ export function ClientModal({
                 <SelectValue placeholder="Select status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="LEAD">Lead</SelectItem>
-                <SelectItem value="BOOKED">Booked</SelectItem>
                 <SelectItem value="CUSTOMER">Customer</SelectItem>
+                <SelectItem value="BOOKED">Booked</SelectItem>
                 <SelectItem value="INACTIVE">Inactive</SelectItem>
               </SelectContent>
             </Select>

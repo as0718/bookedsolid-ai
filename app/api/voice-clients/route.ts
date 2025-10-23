@@ -13,7 +13,11 @@ export async function GET(request: Request) {
 
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
-      select: { id: true },
+      select: {
+        id: true,
+        isTeamMember: true,
+        businessOwnerId: true,
+      },
     });
 
     if (!user) {
@@ -25,9 +29,12 @@ export async function GET(request: Request) {
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || '';
 
+    // Determine the business owner ID (team members see their business owner's clients)
+    const businessOwnerId = user.isTeamMember && user.businessOwnerId ? user.businessOwnerId : user.id;
+
     // Build where clause
     const where: any = {
-      userId: user.id,
+      userId: businessOwnerId,
     };
 
     if (search) {

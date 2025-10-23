@@ -35,8 +35,9 @@ export function hasPermission(user: User | null, permission: Permission): boolea
     }
 
     if (permissions === "view_only") {
-      // View-only team members can only view
+      // View-only team members can view and create appointments (but not edit clients)
       return permission === "view_schedule"
+        || permission === "edit_appointments" // Allow appointment creation
         || permission === "view_clients"
         || permission === "view_analytics";
     }

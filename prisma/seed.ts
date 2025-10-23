@@ -13,24 +13,28 @@ async function main() {
     console.warn("⚠️  Only essential data will be seeded");
   }
 
-  // Clear existing data (only in development)
-  if (!isProduction) {
-    console.log("Clearing existing data...");
-    await prisma.callRecord.deleteMany();
-    await prisma.session.deleteMany();
-    await prisma.account.deleteMany();
-    await prisma.user.deleteMany();
-    await prisma.client.deleteMany();
-  }
-
-  // Check if admin user already exists
+  // Check if admin user already exists BEFORE clearing any data
   const existingAdmin = await prisma.user.findUnique({
     where: { email: "admin@bookedsolid.ai" },
   });
 
   if (existingAdmin) {
     console.log("✓ Admin user already exists, skipping seed");
+    console.log("  Email: admin@bookedsolid.ai");
+    console.log("  Use password from ADMIN_PASSWORD env variable");
     return;
+  }
+
+  // ⚠️  DANGER ZONE: Clear existing data (only in development AND only if no admin exists)
+  // This should rarely be needed - use with caution
+  if (!isProduction && process.env.FORCE_CLEAR_DATA === "true") {
+    console.warn("⚠️  FORCE_CLEAR_DATA is enabled - clearing existing data...");
+    await prisma.callRecord.deleteMany();
+    await prisma.session.deleteMany();
+    await prisma.account.deleteMany();
+    await prisma.user.deleteMany();
+    await prisma.client.deleteMany();
+    console.log("✓ Data cleared");
   }
 
   // Create admin user with hashed password

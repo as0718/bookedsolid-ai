@@ -77,6 +77,24 @@ model User {
   teamJoinedAt      DateTime? // When they joined the team
   invitedById       String?   // Which user invited them
   businessOwnerId   String?   // The business owner they work for (their User ID)
+  servicesOffered   Json?     // Array of services this team member offers (e.g., ["haircut", "coloring", "styling"])
+
+  // Admin Management Fields
+  isAdmin           Boolean   @default(false) // Quick check for admin status
+  adminRole         String?   // "developer" | "business_partner" | "support_staff" | "super_admin"
+  adminPermissions  Json?     // Granular admin permissions: { manageUsers, viewAnalytics, systemConfig, etc. }
+  adminJoinedAt     DateTime? // When they became an admin
+  adminInvitedById  String?   // Which admin invited them
+
+  // Security & Login Tracking
+  failedLoginAttempts Int      @default(0)
+  lastFailedLoginAt   DateTime?
+  lastFailedLoginIp   String?
+  accountLockedUntil  DateTime? // Null if not locked, DateTime if locked until specific time
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+  passwordChangedAt   DateTime?
+  forcePasswordChange Boolean  @default(false) // Require password change on next login
 
   accounts     Account[]
   sessions     Session[]
@@ -90,10 +108,30 @@ model User {
   teamMembers        User[]            @relation("TeamInvites")
   sentInvitations    TeamInvitation[]  @relation("InvitedBy")
 
+  // Admin relations
+  adminInvitedBy         User?              @relation("AdminInvites", fields: [adminInvitedById], references: [id], onDelete: SetNull)
+  adminInvitees          User[]             @relation("AdminInvites")
+  sentAdminInvitations   AdminInvitation[]  @relation("AdminInvitedBy")
+  auditLogsPerformed     AuditLog[]         @relation("AuditLogPerformedBy")
+  passwordResetHistory   PasswordResetHistory[]
+
+  // Time-off and schedule relations
+  timeOffRequests        TimeOffRequest[]   @relation("TimeOffRequestsBy") // Time-off requests made by this user
+  timeOffRequestsToReview TimeOffRequest[]  @relation("TimeOffRequestsFor") // Time-off requests for this business owner to review
+  timeOffReviewed        TimeOffRequest[]   @relation("TimeOffReviewedBy") // Time-off requests reviewed by this user
+  teamSchedule           TeamSchedule?      @relation("TeamSchedules") // Schedule for this team member
+  managedSchedules       TeamSchedule[]     @relation("TeamSchedulesManaged") // Schedules managed by this business owner
+
+  // Notification relations
+  notifications          Notification[]     @relation("UserNotifications") // Notifications for this user
+
   @@index([email])
   @@index([clientId])
   @@index([isTeamMember])
   @@index([businessOwnerId])
+  @@index([isAdmin])
+  @@index([adminRole])
+  @@index([accountLockedUntil])
 }
 
 model VerificationToken {
@@ -348,4 +386,268 @@ model TeamInvitation {
   @@index([invitedById])
   @@index([businessId])
   @@index([status])
+}
+
+// Admin Invitation System
+enum AdminRole {
+  DEVELOPER         // Full system access, API management
+  BUSINESS_PARTNER  // Business analytics, financial reports
+  SUPPORT_STAFF     // User management, password resets
+  SUPER_ADMIN       // Full platform control
+}
+
+model AdminInvitation {
+  id          String           @id @default(cuid())
+  email       String           // Email of admin being invited
+  token       String           @unique // Unique invitation token
+  adminRole   AdminRole        // Role being assigned
+  permissions Json?            // Granular permissions for this admin
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime         // Invitation expiration (7 days from creation)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  // Relations
+  invitedBy   User   @relation("AdminInvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+  invitedById String // Super admin who sent the invite
+
+  @@index([email])
+  @@index([token])
+  @@index([invitedById])
+  @@index([status])
+  @@index([adminRole])
+}
+
+// Audit Log System - Track all admin actions
+enum AuditAction {
+  USER_CREATED
+  USER_UPDATED
+  USER_DELETED
+  USER_PASSWORD_RESET
+  USER_ACCOUNT_LOCKED
+  USER_ACCOUNT_UNLOCKED
+  BUSINESS_CREATED
+  BUSINESS_UPDATED
+  BUSINESS_DELETED
+  BUSINESS_SUSPENDED
+  BUSINESS_ACTIVATED
+  ADMIN_INVITED
+  ADMIN_REMOVED
+  SETTINGS_UPDATED
+  SYSTEM_CONFIG_CHANGED
+  BULK_ACTION_PERFORMED
+  DATA_EXPORTED
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGOUT
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  action      AuditAction // Type of action performed
+  performedBy String      // Admin user ID who performed the action
+  targetType  String?     // Type of entity affected: "user" | "business" | "system"
+  targetId    String?     // ID of affected entity
+  changes     Json?       // Before/after data for updates
+  metadata    Json?       // Additional context (IP, user agent, etc.)
+  ipAddress   String?     // IP address of admin
+  createdAt   DateTime    @default(now())
+
+  // Relations
+  admin User @relation("AuditLogPerformedBy", fields: [performedBy], references: [id], onDelete: Cascade)
+
+  @@index([performedBy])
+  @@index([action])
+  @@index([targetType])
+  @@index([targetId])
+  @@index([createdAt])
+}
+
+// Password Reset History - Track all password changes
+model PasswordResetHistory {
+  id            String   @id @default(cuid())
+  userId        String   // User whose password was reset
+  resetBy       String?  // Admin who performed reset (null if self-reset)
+  resetType     String   // "self" | "admin_forced" | "admin_bulk"
+  wasForced     Boolean  @default(false) // Was this a forced password change?
+  ipAddress     String?  // IP of person who performed reset
+  createdAt     DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([resetBy])
+  @@index([createdAt])
+  @@index([resetType])
+}
+
+// System Health Monitoring
+model SystemHealthMetric {
+  id              String   @id @default(cuid())
+  metricType      String   // "uptime" | "response_time" | "db_performance" | "error_rate"
+  value           Float    // Numeric value of metric
+  unit            String   // "ms" | "percent" | "count"
+  status          String   @default("healthy") // "healthy" | "warning" | "critical"
+  metadata        Json?    // Additional metric details
+  recordedAt      DateTime @default(now())
+
+  @@index([metricType])
+  @@index([recordedAt])
+  @@index([status])
+}
+
+// Error Log System
+model ErrorLog {
+  id            String   @id @default(cuid())
+  errorType     String   // "api_error" | "database_error" | "auth_error" | "system_error"
+  errorCode     String?  // Application error code
+  errorMessage  String   // Error message
+  stackTrace    String?  @db.Text // Full stack trace
+  endpoint      String?  // API endpoint where error occurred
+  method        String?  // HTTP method
+  userId        String?  // User associated with error (if any)
+  ipAddress     String?  // IP address
+  userAgent     String?  // Browser/client info
+  requestBody   Json?    // Request payload (sanitized)
+  frequency     Int      @default(1) // How many times this error occurred
+  firstOccurred DateTime @default(now())
+  lastOccurred  DateTime @default(now())
+  resolved      Boolean  @default(false)
+  resolvedAt    DateTime?
+  resolvedBy    String?  // Admin who marked as resolved
+
+  @@index([errorType])
+  @@index([errorCode])
+  @@index([firstOccurred])
+  @@index([resolved])
+  @@index([userId])
+  @@index([endpoint])
+}
+
+// API Usage Analytics
+model ApiUsageLog {
+  id            String   @id @default(cuid())
+  endpoint      String   // API endpoint called
+  method        String   // HTTP method (GET, POST, etc.)
+  statusCode    Int      // Response status code
+  responseTime  Int      // Response time in milliseconds
+  userId        String?  // User who made the request
+  clientId      String?  // Business associated with request
+  ipAddress     String?  // IP address
+  userAgent     String?  // Client info
+  requestSize   Int?     // Size of request in bytes
+  responseSize  Int?     // Size of response in bytes
+  timestamp     DateTime @default(now())
+
+  @@index([endpoint])
+  @@index([method])
+  @@index([statusCode])
+  @@index([userId])
+  @@index([clientId])
+  @@index([timestamp])
+}
+
+// Time-Off Request System
+enum TimeOffStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TimeOffReason {
+  SICK
+  VACATION
+  PERSONAL
+  FAMILY
+  OTHER
+}
+
+model TimeOffRequest {
+  id            String         @id @default(cuid())
+  teamMemberId  String         // User ID of team member requesting time off
+  businessOwnerId String       // User ID of business owner who will approve/reject
+  startDate     DateTime       // First day of time off
+  endDate       DateTime       // Last day of time off
+  reason        TimeOffReason  @default(PERSONAL)
+  reasonDetails String?        // Additional details about the request
+  status        TimeOffStatus  @default(PENDING)
+  reviewedAt    DateTime?      // When the request was approved/rejected
+  reviewedById  String?        // User ID of who approved/rejected
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // Relations
+  teamMember      User  @relation("TimeOffRequestsBy", fields: [teamMemberId], references: [id], onDelete: Cascade)
+  businessOwner   User  @relation("TimeOffRequestsFor", fields: [businessOwnerId], references: [id], onDelete: Cascade)
+  reviewedBy      User? @relation("TimeOffReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([teamMemberId])
+  @@index([businessOwnerId])
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([reviewedById])
+}
+
+// Team Schedule Management
+model TeamSchedule {
+  id            String   @id @default(cuid())
+  teamMemberId  String   @unique // User ID of team member
+  businessOwnerId String // User ID of business owner managing the schedule
+
+  // Working days (JSON array of day names)
+  workingDays   Json     // ["monday", "tuesday", "wednesday", "thursday", "friday"]
+
+  // Working hours (JSON object with start and end times)
+  workingHours  Json     // { "start": "09:00", "end": "17:00" }
+
+  // Recurring availability
+  recurring     Boolean  @default(true) // If true, schedule repeats weekly
+
+  // Effective date range (for seasonal or temporary schedules)
+  effectiveFrom DateTime @default(now())
+  effectiveTo   DateTime? // Null means indefinite
+
+  // Metadata
+  notes         String?  // Optional notes about the schedule
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  teamMember    User @relation("TeamSchedules", fields: [teamMemberId], references: [id], onDelete: Cascade)
+  businessOwner User @relation("TeamSchedulesManaged", fields: [businessOwnerId], references: [id], onDelete: Cascade)
+
+  @@index([teamMemberId])
+  @@index([businessOwnerId])
+  @@index([effectiveFrom])
+  @@index([effectiveTo])
+}
+
+// In-App Notification System
+enum NotificationType {
+  TIME_OFF_REQUEST
+  TIME_OFF_APPROVED
+  TIME_OFF_REJECTED
+  APPOINTMENT_SCHEDULED
+  GENERAL
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String           // User who receives the notification
+  type      NotificationType
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  link      String?          // Optional link to related page
+  metadata  Json?            // Additional data (e.g., timeOffRequestId)
+  createdAt DateTime         @default(now())
+
+  // Relations
+  user User @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([read])
+  @@index([createdAt])
 }

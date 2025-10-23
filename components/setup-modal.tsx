@@ -135,9 +135,12 @@ export default function SetupModal() {
       <div className="bg-white rounded-lg max-w-5xl w-full my-8">
         <div className="p-6">
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-2">Welcome to BookedSolid AI!</h2>
-            <p className="text-gray-600 text-lg">
-              Choose your plan to get started with AI-powered call management
+            <h2 className="text-3xl font-bold mb-2">Choose Your Plan</h2>
+            <p className="text-gray-600 text-lg mb-1">
+              Select the perfect plan for your AI-powered call management
+            </p>
+            <p className="text-gray-500 text-sm">
+              Step 2 of 2: Plan Selection
             </p>
           </div>
 

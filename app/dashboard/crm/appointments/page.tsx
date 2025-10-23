@@ -144,19 +144,27 @@ export default function AppointmentsPage() {
 
   const daysToShow = getDaysToShow();
 
+  // Calculate weekly appointment stats for current user
+  const startOfCurrentWeek = startOfWeek(new Date());
+  const endOfCurrentWeek = addDays(startOfCurrentWeek, 6);
+  const weeklyAppointments = appointments.filter((apt) => {
+    const aptDate = new Date(apt.date);
+    return aptDate >= startOfCurrentWeek && aptDate <= endOfCurrentWeek;
+  });
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Appointments</h1>
-            <p className="text-gray-600 mt-1">Manage your appointment schedule</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Appointments</h1>
+            <p className="text-sm sm:text-base text-gray-600 mt-1">Manage your appointment schedule</p>
           </div>
           {canEditAppointments && (
             <Button
               onClick={handleNewAppointment}
-              className="bg-purple-600 hover:bg-purple-700"
+              className="bg-purple-600 hover:bg-purple-700 w-full sm:w-auto min-h-[44px]"
             >
               <Plus className="h-4 w-4 mr-2" />
               New Appointment
@@ -164,28 +172,49 @@ export default function AppointmentsPage() {
           )}
         </div>
 
+        {/* Weekly Stats Card - Show for all users */}
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg shadow-lg p-6 mb-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold mb-1">Your Appointments This Week</h3>
+              <p className="text-purple-100 text-sm">
+                {format(startOfCurrentWeek, "MMM d")} - {format(endOfCurrentWeek, "MMM d, yyyy")}
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-4xl font-bold">{weeklyAppointments.length}</div>
+              <div className="text-sm text-purple-100">
+                {weeklyAppointments.filter(a => a.status === "CONFIRMED").length} confirmed
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Calendar Controls */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 mb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
+            {/* Date Navigation */}
+            <div className="flex items-center gap-2 sm:gap-4 justify-center sm:justify-start">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => navigateDate("prev")}
+                className="min-h-[44px] min-w-[44px] flex-shrink-0"
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <h2 className="text-lg font-semibold text-gray-900 min-w-[200px] text-center">
+              <h2 className="text-sm sm:text-lg font-semibold text-gray-900 text-center flex-1 sm:min-w-[200px]">
                 {viewMode === "month"
                   ? format(currentDate, "MMMM yyyy")
                   : viewMode === "week"
-                  ? `Week of ${format(startOfWeek(currentDate), "MMM d, yyyy")}`
-                  : format(currentDate, "EEEE, MMMM d, yyyy")}
+                  ? format(startOfWeek(currentDate), "MMM d, yyyy")
+                  : format(currentDate, "MMM d, yyyy")}
               </h2>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => navigateDate("next")}
+                className="min-h-[44px] min-w-[44px] flex-shrink-0"
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -193,16 +222,19 @@ export default function AppointmentsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setCurrentDate(new Date())}
+                className="min-h-[44px] flex-shrink-0"
               >
                 Today
               </Button>
             </div>
 
+            {/* View Mode Toggle */}
             <div className="flex gap-2">
               <Button
                 variant={viewMode === "day" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setViewMode("day")}
+                className="min-h-[44px] flex-1 sm:flex-none"
               >
                 Day
               </Button>
@@ -210,6 +242,7 @@ export default function AppointmentsPage() {
                 variant={viewMode === "week" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setViewMode("week")}
+                className="min-h-[44px] flex-1 sm:flex-none"
               >
                 Week
               </Button>
@@ -217,6 +250,7 @@ export default function AppointmentsPage() {
                 variant={viewMode === "month" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setViewMode("month")}
+                className="min-h-[44px] flex-1 sm:flex-none"
               >
                 Month
               </Button>
@@ -230,12 +264,13 @@ export default function AppointmentsPage() {
             // Month View - Grid
             <div className="grid grid-cols-7 gap-px bg-gray-200">
               {/* Day Headers */}
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, idx) => (
                 <div
                   key={day}
-                  className="bg-gray-50 p-2 text-center text-sm font-semibold text-gray-700"
+                  className="bg-gray-50 p-1 sm:p-2 text-center text-xs sm:text-sm font-semibold text-gray-700"
                 >
-                  {day}
+                  <span className="hidden sm:inline">{day}</span>
+                  <span className="sm:hidden">{day.charAt(0)}</span>
                 </div>
               ))}
 
@@ -248,11 +283,11 @@ export default function AppointmentsPage() {
                 return (
                   <div
                     key={index}
-                    className={`bg-white p-2 min-h-[120px] ${
+                    className={`bg-white p-1 sm:p-2 min-h-[80px] sm:min-h-[120px] ${
                       isCurrentDay ? "bg-blue-50" : ""
                     } ${
                       canEditAppointments && !isPastDate
-                        ? "cursor-pointer hover:bg-gray-50"
+                        ? "cursor-pointer hover:bg-gray-50 active:bg-gray-100"
                         : ""
                     }`}
                     onClick={() => {
@@ -262,17 +297,17 @@ export default function AppointmentsPage() {
                     }}
                   >
                     <div
-                      className={`text-sm font-medium mb-2 ${
+                      className={`text-xs sm:text-sm font-medium mb-1 sm:mb-2 ${
                         isCurrentDay ? "text-blue-600" : "text-gray-900"
                       }`}
                     >
                       {format(day, "d")}
                     </div>
                     <div className="space-y-1">
-                      {dayAppointments.slice(0, 3).map((apt) => (
+                      {dayAppointments.slice(0, 2).map((apt) => (
                         <div
                           key={apt.id}
-                          className={`text-xs p-1 rounded border cursor-pointer hover:opacity-80 ${
+                          className={`text-xs p-1 rounded border cursor-pointer hover:opacity-80 active:opacity-60 min-h-[32px] sm:min-h-[28px] flex items-center ${
                             statusColors[apt.status]
                           }`}
                           onClick={(e) => {
@@ -280,12 +315,14 @@ export default function AppointmentsPage() {
                             router.push(`/dashboard/crm/clients/${apt.client.id}`);
                           }}
                         >
-                          {formatTime(apt.date)} - {apt.client.clientName || "Unknown"}
+                          <span className="truncate text-[10px] sm:text-xs">
+                            {formatTime(apt.date)} - {apt.client.clientName || "Unknown"}
+                          </span>
                         </div>
                       ))}
-                      {dayAppointments.length > 3 && (
-                        <div className="text-xs text-gray-500 text-center">
-                          +{dayAppointments.length - 3} more
+                      {dayAppointments.length > 2 && (
+                        <div className="text-[10px] sm:text-xs text-gray-500 text-center">
+                          +{dayAppointments.length - 2} more
                         </div>
                       )}
                     </div>
@@ -295,87 +332,89 @@ export default function AppointmentsPage() {
             </div>
           ) : (
             // Day/Week View - List
-            <div className={`grid ${viewMode === "week" ? "grid-cols-7" : "grid-cols-1"} gap-px bg-gray-200`}>
-              {daysToShow.map((day, index) => {
-                const dayAppointments = getAppointmentsForDay(day).sort(
-                  (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-                );
-                const isCurrentDay = isToday(day);
+            <div className={viewMode === "week" ? "overflow-x-auto" : ""}>
+              <div className={`grid ${viewMode === "week" ? "grid-cols-7 min-w-[1400px] sm:min-w-0" : "grid-cols-1"} gap-px bg-gray-200`}>
+                {daysToShow.map((day, index) => {
+                  const dayAppointments = getAppointmentsForDay(day).sort(
+                    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+                  );
+                  const isCurrentDay = isToday(day);
 
-                return (
-                  <div key={index} className="bg-white">
-                    {/* Day Header */}
-                    <div
-                      className={`p-3 border-b ${
-                        isCurrentDay ? "bg-blue-50" : "bg-gray-50"
-                      }`}
-                    >
+                  return (
+                    <div key={index} className="bg-white">
+                      {/* Day Header */}
                       <div
-                        className={`text-sm font-semibold ${
-                          isCurrentDay ? "text-blue-600" : "text-gray-900"
+                        className={`p-2 sm:p-3 border-b ${
+                          isCurrentDay ? "bg-blue-50" : "bg-gray-50"
                         }`}
                       >
-                        {format(day, "EEE")}
-                      </div>
-                      <div
-                        className={`text-lg font-bold ${
-                          isCurrentDay ? "text-blue-600" : "text-gray-900"
-                        }`}
-                      >
-                        {format(day, "d")}
-                      </div>
-                    </div>
-
-                    {/* Appointments for this day */}
-                    <div className="p-3 space-y-2 min-h-[300px]">
-                      {dayAppointments.length === 0 ? (
-                        <div className="text-center text-gray-400 py-8 text-sm">
-                          No appointments
+                        <div
+                          className={`text-xs sm:text-sm font-semibold ${
+                            isCurrentDay ? "text-blue-600" : "text-gray-900"
+                          }`}
+                        >
+                          {format(day, "EEE")}
                         </div>
-                      ) : (
-                        dayAppointments.map((apt) => (
-                          <div
-                            key={apt.id}
-                            className={`p-3 rounded-lg border-l-4 cursor-pointer hover:shadow-md transition-shadow ${
-                              statusColors[apt.status]
-                            }`}
-                            onClick={(e) => {
-                              e.stopPropagation(); // Prevent day click
-                              router.push(`/dashboard/crm/clients/${apt.client.id}`);
-                            }}
-                          >
-                            <div className="flex items-center gap-2 mb-1">
-                              <Clock className="h-4 w-4" />
-                              <span className="font-semibold text-sm">
-                                {formatTime(apt.date)}
-                              </span>
-                              <span className="text-xs">
-                                ({formatDuration(apt.duration)})
-                              </span>
-                            </div>
-                            <div className="text-sm font-medium">
-                              {apt.client.clientName || "Unknown Client"}
-                            </div>
-                            <div className="text-xs text-gray-600 mt-1">
-                              {apt.serviceType}
-                            </div>
-                            {apt.specialist && (
-                              <div className="text-xs text-gray-600 mt-1">
-                                <span className="font-medium">Specialist:</span> {apt.specialist.name}
-                              </div>
-                            )}
-                            {apt.notes && (
-                              <div className="text-xs text-gray-500 mt-1 line-clamp-2">
-                                {apt.notes}
-                              </div>
-                            )}
+                        <div
+                          className={`text-base sm:text-lg font-bold ${
+                            isCurrentDay ? "text-blue-600" : "text-gray-900"
+                          }`}
+                        >
+                          {format(day, "d")}
+                        </div>
+                      </div>
+
+                      {/* Appointments for this day */}
+                      <div className="p-2 sm:p-3 space-y-2 min-h-[200px] sm:min-h-[300px]">
+                        {dayAppointments.length === 0 ? (
+                          <div className="text-center text-gray-400 py-4 sm:py-8 text-xs sm:text-sm">
+                            No appointments
                           </div>
-                        ))
-                      )}
+                        ) : (
+                          dayAppointments.map((apt) => (
+                            <div
+                              key={apt.id}
+                              className={`p-2 sm:p-3 rounded-lg border-l-4 cursor-pointer hover:shadow-md active:shadow-lg transition-shadow min-h-[44px] flex flex-col justify-center ${
+                                statusColors[apt.status]
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent day click
+                                router.push(`/dashboard/crm/clients/${apt.client.id}`);
+                              }}
+                            >
+                              <div className="flex items-center gap-1 sm:gap-2 mb-1">
+                                <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                                <span className="font-semibold text-xs sm:text-sm">
+                                  {formatTime(apt.date)}
+                                </span>
+                                <span className="text-[10px] sm:text-xs">
+                                  ({formatDuration(apt.duration)})
+                                </span>
+                              </div>
+                              <div className="text-xs sm:text-sm font-medium truncate">
+                                {apt.client.clientName || "Unknown Client"}
+                              </div>
+                              <div className="text-[10px] sm:text-xs text-gray-600 mt-1 truncate">
+                                {apt.serviceType}
+                              </div>
+                              {apt.specialist && (
+                                <div className="text-[10px] sm:text-xs text-gray-600 mt-1 truncate">
+                                  <span className="font-medium">Specialist:</span> {apt.specialist.name}
+                                </div>
+                              )}
+                              {apt.notes && (
+                                <div className="text-[10px] sm:text-xs text-gray-500 mt-1 line-clamp-2">
+                                  {apt.notes}
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

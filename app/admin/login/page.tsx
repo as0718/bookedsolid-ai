@@ -42,18 +42,18 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-      <Card className="w-full max-w-md border-slate-700 bg-slate-800/50 backdrop-blur">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-blue-50 p-4">
+      <Card className="w-full max-w-md">
         <CardHeader className="space-y-3 text-center">
           <div className="flex justify-center mb-2">
-            <div className="w-16 h-16 bg-gradient-to-r from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
+            <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl flex items-center justify-center">
               <Shield className="w-8 h-8 text-white" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
+          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
             Admin Portal
           </CardTitle>
-          <CardDescription className="text-slate-400 text-lg">
+          <CardDescription className="text-lg">
             Authorized Personnel Only
           </CardDescription>
         </CardHeader>
@@ -61,7 +61,7 @@ export default function AdminLoginPage() {
           {/* Email/Password Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="admin-email" className="text-slate-200">Admin Email</Label>
+              <Label htmlFor="admin-email">Admin Email</Label>
               <Input
                 id="admin-email"
                 type="email"
@@ -71,11 +71,10 @@ export default function AdminLoginPage() {
                 required
                 disabled={loading}
                 autoComplete="email"
-                className="bg-slate-900/50 border-slate-600 text-slate-100"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="admin-password" className="text-slate-200">Admin Password</Label>
+              <Label htmlFor="admin-password">Admin Password</Label>
               <Input
                 id="admin-password"
                 type="password"
@@ -85,19 +84,18 @@ export default function AdminLoginPage() {
                 required
                 disabled={loading}
                 autoComplete="current-password"
-                className="bg-slate-900/50 border-slate-600 text-slate-100"
               />
             </div>
 
             {error && (
-              <div className="p-3 text-sm text-red-200 bg-red-900/50 border border-red-700 rounded-md">
+              <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
                 {error}
               </div>
             )}
 
             <Button
               type="submit"
-              className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+              className="w-full"
               disabled={loading}
             >
               {loading ? "Logging in..." : "Admin Log In"}
